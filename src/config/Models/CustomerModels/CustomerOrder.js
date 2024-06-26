@@ -1,7 +1,10 @@
-import { sequelize } from '../../dbConfig.js'
-import { DataTypes } from 'sequelize';
+import { sequelize } from "../../dbConfig.js";
+import { DataTypes } from "sequelize";
+import { CustomerPackage } from "./CustomerPackage.js";
 
-export const CustomerOrder = sequelize.define('CustomerOrder', {
+export const CustomerOrder = sequelize.define(
+  "CustomerOrder",
+  {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
@@ -15,8 +18,24 @@ export const CustomerOrder = sequelize.define('CustomerOrder', {
       type: DataTypes.INTEGER,
       allowNull: false,
     },
+    pickup_delivery: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    vendor_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
     package_id: {
       type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    customer_package_subscription_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    order_date: {
+      type: DataTypes.DATEONLY,
       allowNull: false,
     },
     created_date: {
@@ -28,6 +47,10 @@ export const CustomerOrder = sequelize.define('CustomerOrder', {
       allowNull: true,
     },
     is_delivered: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    customer_package_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
     },
@@ -46,13 +69,30 @@ export const CustomerOrder = sequelize.define('CustomerOrder', {
     delivery_img: {
       type: DataTypes.STRING,
     },
+    vendor_employee_id: {
+      type: DataTypes.INTEGER,
+    },
     delivered_time: {
       type: DataTypes.DATE,
     },
-    customer_delivery_address_id:{
-      type: DataTypes.INTEGER
-    }
-  }, {
-    tableName: 'customer_orders',
+    customer_delivery_address_id: {
+      type: DataTypes.INTEGER,
+    },
+    vendor_location_id: {
+      type: DataTypes.INTEGER,
+    },
+    status: {
+      type: DataTypes.INTEGER,
+    },
+    delivery_address: {
+      type: DataTypes.CHAR,
+    },
+    vendor_package_slots_id: {
+      type: DataTypes.INTEGER,
+    },
+  },
+  {
+    tableName: "customer_orders",
     timestamps: false,
-  });
+  }
+);

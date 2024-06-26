@@ -1,0 +1,759 @@
+import { Sequelize, Op } from "sequelize";
+import {
+  UserCustomer,
+  CustomerPackage,
+  VendorPackage,
+  VendorPackageDefaultItem,
+  VendorPackageMenuItems,
+  CustomerOrder,
+  VendorMenuItems,
+  CustomerOrderItem,
+  VendorCustomerLink,
+  VendorSettings,
+  CustomerDeliveryAddress,
+  CitiesAll,
+  Vendor,
+} from "../config/Models/relations.js";
+import crypto from "crypto";
+import { loggedInUser } from "../middleware/Auth.js";
+import Helper from "../utils/Helper.js";
+import twilio from "twilio";
+import { sendEmail } from "../utils/email.js";
+import { log } from "console";
+
+export const savePackages = async (req, res) => {
+  try {
+    const packagesData = req.body;
+    const loggedInUserId = loggedInUser(req);
+    // Loop through the data and associate each package with the vendor
+    for (const packageData of packagesData) {
+      if(packageData.quantity > 1){
+        for(let x = 0; x < packageData.quantity; x++){
+          const packageInstance = await CustomerPackage.create({
+            user_id: loggedInUserId,
+            package_id: packageData.id,
+            payment_status: 0,
+            frequency_id: packageData.frequency.frequency_name,
+            user_package_name: packageData.user_package_name,        
+            created_date: new Date(),
+            start_date: packageData.start_date,
+            quantity: packageData.quantity,
+            customer_delivery_address_id:0,
+            pickup_delivery: 1
+            // end_date: new Date(),
+          });
+          console.log
+        }
+
+      }else{
+        const packageInstance = await CustomerPackage.create({
+          user_id: loggedInUserId,
+          package_id: packageData.id,
+          payment_status: 0,
+          frequency: packageData.frequency.frequency_name,
+          user_package_name: packageData.user_package_name,        
+          created_date: new Date(),
+          start_date: packageData.start_date,
+          quantity: packageData.quantity,
+          customer_delivery_address_id:0,
+          pickup_delivery: 1
+          // end_date: new Date(),
+        });        
+      }
+    }
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error("Error saving data:", error);
+  }
+};
+
+export const checkExistingUser = async (req, res) => {
+  try {
+    const { phone } = req.body;
+    const loggedInUserId = loggedInUser(req);
+    const existingUser = await UserCustomer.findOne({
+      where: {
+        phone,
+        vendor_id: loggedInUserId,
+      },
+      include: [
+        {
+          model: VendorCustomerLink,
+        },
+        {
+          model: CustomerPackage,
+        },
+      ],
+    });
+
+    if (!existingUser) {
+      return res
+        .status(200)
+        .json({ status: false, message: "Phone Number does not exist." });
+    } else {
+      return res
+        .status(200)
+        .json({
+          status: true,
+          data: existingUser,
+          message: "Phone number exists.",
+        });
+    }
+  } catch (error) {
+    console.error("Error fetching customers:", error.stack);
+    return res
+      .status(500)
+      .json({ status: "failed", error: "Internal Server Error" });
+  }
+};
+
+export const saveCustomer = async (req, res) => {
+  const userData = req.body;
+  const loggedInUserId = loggedInUser(req);
+  let createdUser;
+  try {
+    if (!userData.id) {
+      createdUser = await UserCustomer.create({
+        //   id: userData.id,
+        first_name: userData.first_name,
+        last_name: userData.last_name,
+        //    password: userData.password,
+        email: userData.email,
+        phone: "1" + userData.phone,
+        address_1: userData.address,
+        address_2: userData.address_2,
+        postal_code: userData.postal_code,
+        created_date: new Date(),
+        status: 0,
+        city_id: 1,
+        last_login: new Date(),
+        last_order: 1,
+        vendor_id: loggedInUserId,
+      });
+    } else {
+      createdUser = await UserCustomer.findOne({
+        where: { id: userData.id },
+      });
+    }
+    if (!userData.id) {
+      const packages = [];
+      for (let step = 0; step < userData.orderPackages.length; step++) {
+        const packageDetails = await VendorPackage.findOne({
+          where: { id: userData.orderPackages[step].package },
+        });
+        console.log(packageDetails, "packageDetails packages");
+
+        packages.push(packageDetails.id);
+      }
+      console.log(packages, "packages packages");
+      if (packages.length > 0) {
+        for (let i = 0; i < packages.length; i++) {
+          console.log(packages[i], "{io}\n", userData.orderPackages[i], "\n");
+          const customerPackage = await CustomerPackage.create({
+            user_id: createdUser.id,
+            package_id: packages[i],
+            payment_status: 0,
+            frequency: "daily",
+            user_package_name: "",
+            quantity: "1",
+            created_date: userData.orderPackages[i].start_date,
+            start_date: new Date(),
+            end_date: new Date(),
+          });
+        }
+      }
+    }
+    for (let i = 0; i < userData.orderPackages.length; i++) {
+      const VendorCustomer = await VendorCustomerLink.create({
+        vendor_id: loggedInUserId,
+        customer_id: createdUser.id,
+        package_id: userData.orderPackages[i].package,
+        delivery_instructions: userData.delivery_instruction,
+        status: 1,
+        created_at: new Date(),
+      });
+    }
+
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const client = twilio(accountSid, authToken);
+
+    let pin = Helper.generateRandomPin(8);
+    while (!(await isCodeUnique(pin))) {
+      pin = Helper.generateRandomPin(8);
+    }
+
+    await createdUser.update({
+      verification_code: pin,
+    });
+
+    client.messages
+      .create({
+        // body: `click the following link to create a new account http://localhost:5173/customer-onboard/${pin}.`,
+        body: `click the following link to create a new account https://menuscribe.com/customer-onboard/${pin}.`,
+        from: "+16474928950",
+        to: "+1" + userData.phone,
+        //   to: '+923459637337'
+      })
+      .then((message) => console.log(message.sid));
+
+    // const to = userData.email;
+    // const subject = 'Test Email';
+    // const text = `Create the following link to create a new account http://localhost:5173/customer-onboard/${pin}.`;
+
+    // sendEmail(to, subject, text);
+
+    res.json({
+      success: true,
+      message: "Data inserted successfully",
+      data: createdUser,
+    });
+  } catch (error) {
+    console.error("Error inserting data:", error);
+    res
+      .status(500)
+      .json({ error: "Internal Server Error", error_detail: error });
+  }
+};
+
+async function isCodeUnique(pin) {
+  const existingUser = await UserCustomer.findOne({
+    where: {
+      verification_code: pin,
+    },
+  });
+  return !existingUser;
+}
+
+export const getCustomer = async (req, res) => {
+  const Id = req.params.id;
+  try {
+    const result = await UserCustomer.findOne({
+      where: { id: Id },
+    });
+    if (result.status === 2) {
+      res
+        .status(200)
+        .json({ success: true, data: { id: result.id, phone: result.phone } });
+    } else {
+      res.status(200).json({ success: true, data: result });
+    }
+  } catch (error) {
+    console.log("Error fetching customer: " + error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const getCustomerWithAddress = async (req, res) => {
+  const { id } = req.query;
+  try {
+    console.log(
+      `Service Enter - ${req.originalUrl} - ${req.method}`,
+      JSON.stringify(req.query)
+    );
+    const loggedInUserId = loggedInUser(req);
+    const customer = await UserCustomer.findOne({
+      where: { id },
+      include: [
+        {
+          model: CustomerDeliveryAddress,
+          attributes: ["address", "id"],
+        },
+        {
+          model: CustomerPackage,
+          attributes: [
+            "id",
+            "package_id",
+            "payment_status",
+            "pickup_delivery",
+            "customer_delivery_address_id",
+            "frequency",
+            "user_package_name",
+          ],
+          include: {
+            model: VendorPackage,
+            attributes: ["package_name"],
+          },
+        },
+      ],
+    });
+    if (customer.vendor_id !== loggedInUserId) {
+      return res
+        .status(401)
+        .json({ errors: "You Cannot access this resource" });
+    }
+    res.status(200).json({
+      success: true,
+      data: customer,
+    });
+  } catch (error) {
+    console.error("Error while fetching Customer with address: ", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const getCustomerByVc = async (req, res) => {
+  const Id = req.params.id;
+  try {
+    const results = await UserCustomer.findOne({
+      where: { verification_code: Id },
+    });
+    res.status(200).json({ success: true, data: results });
+  } catch (error) {
+    console.log("Error fetching customer: " + error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+function hashPassword(password) {
+  return crypto.createHash("md5").update(password).digest("hex");
+}
+
+export const updateCustomerPassword = async (req, res) => {
+  try {
+    const customerData = req.body;
+    // Find the existing item
+    const existingCustomer = await UserCustomer.findByPk(customerData.id);
+
+    if (!existingCustomer) {
+      return res.status(404).json({ error: "Item not found" });
+    }
+    let pin = Helper.generateRandomPin(4);
+    while (!(await isPinUnique(pin))) {
+      pin = Helper.generateRandomPin(4);
+    }
+    // Update the existing item's properties
+    existingCustomer.password = hashPassword(customerData.password);
+    existingCustomer.status = 2;
+    existingCustomer.verification_pin = pin;
+    // Save the updated item
+    await existingCustomer.save();
+
+    client.messages
+      .create({
+        // body: `click the following link to create a new account http://localhost:5173/customer-onboard/${pin}.`,
+        body: `Use the pin for verification ${pin}.`,
+        from: "+16474928950",
+        to: "+1" + existingCustomer.phone,
+        //   to: '+923459637337'
+      })
+      .then((message) => console.log(message.sid));
+
+    // const to = existingCustomer.email;
+    // const subject = 'Test Email';
+    // const text = `Use the pin for verification ${pin}.`;
+
+    // sendEmail(to, subject, text);
+
+    res.status(200).json({ success: true, data: { id: existingCustomer.id } });
+  } catch (error) {
+    console.error("Error updating user:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+async function isPinUnique(pin) {
+  const existingUser = await UserCustomer.findOne({
+    where: {
+      verification_code: pin,
+      status: {
+        [Sequelize.Op.ne]: 1,
+      },
+    },
+  });
+  return !existingUser;
+}
+
+export const checkVerificationPin = async (req, res) => {
+  try {
+    const customerData = req.body;
+    // Find the existing item
+    const pinVerify = await UserCustomer.findOne({
+      where: {
+        verification_pin: customerData.pin,
+        id: customerData.id,
+      },
+    });
+
+    if (!pinVerify) {
+      return res.status(404).json({ error: "Item not found" });
+    }
+    res.status(200).json({ success: true, data: { id: pinVerify.id } });
+  } catch (error) {
+    console.error("Error updating user:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+export const updateCustomer = async (req, res) => {
+  try {
+    const customerData = req.body;
+    // Find the existing item
+    const existingCustomer = await UserCustomer.findByPk(customerData.id);
+
+    if (!existingCustomer) {
+      return res.status(404).json({ error: "Item not found" });
+    }
+    // Update the existing item's properties
+    existingCustomer.first_name = customerData.first_name;
+    existingCustomer.last_name = customerData.last_name;
+    existingCustomer.email = customerData.email;
+    existingCustomer.phone = customerData.phone;
+    existingCustomer.address_1 = customerData.address;
+    existingCustomer.delivery_instruction = customerData.delivery_instruction;
+    existingCustomer.postal_code = customerData.postal_code;
+    existingCustomer.city_id = customerData.city;
+    existingCustomer.status = 1;
+
+    // Save the updated item
+    await existingCustomer.save();
+
+    res.status(200).json({ success: true, data: existingCustomer.id });
+  } catch (error) {
+    console.error("Error updating user:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const getUserPackages = async (req, res) => {
+  const { ids } = req.body;
+  try {
+    const results = await CustomerPackage.findAll({
+      include: [
+        {
+          model: VendorPackage,
+        },
+      ],
+      where: { package_id: ids },
+    });
+    res.status(200).json({ success: true, data: results });
+  } catch (error) {
+    console.log("Error fetching customer: " + error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const getCustomerPackages = async (req, res) => {
+  //const { id } = req.body;
+  const id = req.params.id;
+  try {
+    const customer = await UserCustomer.findOne({
+      where: { id: id },
+    });
+
+    let vendorSetting, CustomerAddress, vendor;
+    if (customer) {
+      vendorSetting = await VendorSettings.findOne({
+        where: { id: customer.vendor_id },        
+      });      
+      vendor = await Vendor.findAll({
+        where: {id: customer.vendor_id}
+      })
+      CustomerAddress = await CustomerDeliveryAddress.findAll({
+        where: { customer_id: id },
+        include: {
+          model: CitiesAll,
+        },
+      });
+    }
+// console.log(vendorSetting, CustomerAddress)
+
+    const results = await CustomerPackage.findAll({
+      // where: { user_id: id, payment_status: 1 },
+      where: { user_id: id },
+      include: [
+        {
+          model: VendorPackage,
+          include: [
+            {
+              model: VendorPackageDefaultItem,
+              include: [
+                {
+                  model: VendorPackageMenuItems,
+                },
+              ],
+            },
+          ],
+        },
+        {
+          model: UserCustomer,
+        },
+        {
+          model: CustomerDeliveryAddress,
+          include: [
+            {
+              model: CitiesAll
+            }
+          ]
+        },
+      ],
+    });
+    
+
+    res
+      .status(200)
+      .json({
+        success: true,
+        data: { results, vendorSetting, CustomerAddress, vendor},
+        
+      });
+  } catch (error) {
+    console.log("Error fetching customer: " + error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const saveCustomerOrder = async (req, res) => {
+  const { ids } = req.body;
+  try {
+    const loggedInUserId = loggedInUser(req);
+    const results = await CustomerPackage.findAll({
+      include: [
+        {
+          model: VendorPackage,
+          include: [
+            {
+              model: VendorPackageDefaultItem,
+              include: [
+                {
+                  model: VendorMenuItems,
+                },
+                {
+                  model: VendorPackageMenuItems,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      where: { package_id: ids },
+    });
+
+    results.forEach(async (customerPackage) => {
+      let arr = [];
+      let daysCount;
+      let totalAmount;
+      if (customerPackage.VendorPackage.sun === 1) {
+        arr.push("sunday");
+      }
+      if (customerPackage.VendorPackage.mon === 1) {
+        arr.push("monday");
+      }
+      if (customerPackage.VendorPackage.tue === 1) {
+        arr.push("tuesday");
+      }
+      if (customerPackage.VendorPackage.wed === 1) {
+        arr.push("wednesday");
+      }
+      if (customerPackage.VendorPackage.thu === 1) {
+        arr.push("thursday");
+      }
+      if (customerPackage.VendorPackage.fri === 1) {
+        arr.push("friday");
+      }
+      if (customerPackage.VendorPackage.sat === 1) {
+        arr.push("saturday");
+      }
+
+      if (customerPackage.frequency === "daily") {
+        daysCount = 1;
+      } else if (customerPackage.frequency === "weekly") {
+        daysCount = 5;
+      } else if (customerPackage.frequency === "monthly") {
+        daysCount = 20;
+      }
+      if (customerPackage.frequency === "daily") {
+        totalAmount = customerPackage.VendorPackage.price_daily;
+      } else if (customerPackage.frequency === "weekly") {
+        totalAmount = customerPackage.VendorPackage.price_weekly;
+      } else if (customerPackage.frequency === "monthly") {
+        totalAmount = customerPackage.VendorPackage.price_monthly;
+      }
+
+      const nextDays = Helper.getNextDatesOfWeek(arr);
+      //console.log(nextDays)
+
+      nextDays.forEach(async (days) => {
+        let deliveryTime = `${days.Date}T${customerPackage.VendorPackage.delivery_schedule_start}`;
+        const createdOrder = await CustomerOrder.create({
+          user_id: loggedInUserId,
+          vendor_id: customerPackage.VendorPackage.vendor_id,
+          package_id: customerPackage.VendorPackage.id,
+          created_date: new Date(),
+          is_ready: 0,
+          is_delivered: 0,
+          subtotal: 0,
+          tax: 0,
+          total: totalAmount,
+          delivery_img: "",
+          delivered_time: new Date(deliveryTime),
+        });
+
+        customerPackage.VendorPackage.VendorPackageDefaultItems.forEach(
+          async (ditem) => {
+            const createdOrderItem = await CustomerOrderItem.create({
+              order_id: createdOrder.id,
+              item_id: ditem.VendorMenuItem.id,
+            });
+          }
+        );
+      });
+    });
+    res.status(200).json({ success: true, data: results });
+  } catch (error) {
+    console.log("Error fetching customer: " + error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const cancelCustomerOrder = async (req, res) => {
+  const customerData = req.body;
+  try {
+    const customer = await CustomerPackage.findOne({
+      where: {
+        user_id: customerData.customer_id,
+        package_id: customerData.package_id,
+      },
+    });
+
+    if (!customer) {
+      return res.status(404).json({ error: "Customer not found" });
+    }
+    // Update the existing item's properties
+    customer.payment_status = 0;
+    await customer.save();
+
+    res.status(200).json({ success: true, data: customer.id });
+  } catch (error) {
+    console.log("Error fetching customer: " + error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const getCustomerAddress = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const results = await CustomerDeliveryAddress.findAll({
+//       where: { id: id },
+//     });
+//     res.status(200).json({ success: true, data: results });
+//   } catch (error) {
+//     console.log("Error fetching address: " + error);
+//     res.status(500).json({ error: "Internal Server Error" });
+//   }
+try {
+    const loggedInUserId = loggedInUser(req)
+    const result = await CustomerDeliveryAddress.findAll({
+        where: {customer_id: loggedInUserId}
+    })    
+    res.status(200).json({message: "Customer delivery address found", data: result});
+} catch (error) {
+    res.status(500).json({message: "Faild get customer delivery address", details: error})
+}
+};
+
+export const setCustomerAddress = async (req, res) => {
+  // console.log("API HIT")
+  try {
+    const reqBody = req.body;   
+    const loggedInUserId = loggedInUser(req);
+    const result = await CustomerDeliveryAddress.create({
+      address: reqBody.address,
+      delivery_instructions: reqBody.delivery_instructions,
+      city_id: parseInt(reqBody.city_id),
+      postal: reqBody.postal,
+      status: 1,
+      customer_id: loggedInUserId,
+    });
+    res
+      .status(200)
+      .json({
+        message: "Customer delivery address created successfully",
+        data: result,
+      });
+  } catch (error) {
+    res.status(500).json({ message: "Faild to save customer address" });
+  }
+};
+
+export const updateCustomerAddress = async (req, res) => {
+  try {
+    let address;
+    const addressData = req.body;
+    if (addressData.id === 0 || addressData.id === undefined) {
+      address = await CustomerDeliveryAddress.create({
+        address: addressData.address,
+        customer_id: addressData.customer_id,
+        city_id: addressData.city_id,
+        postal: addressData.postal,
+        delivery_instructions: addressData.delivery_instructions,
+        status: 1,
+      });
+    } else {
+      address = await CustomerDeliveryAddress.findByPk(addressData.id);
+      if (!address) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      address.address = addressData.address;
+      address.city_id = addressData.city_id;
+      address.postal = addressData.postal;
+      (address.delivery_instructions = addressData.delivery_instructions),
+        await address.save();
+    }
+    res.status(200).json({ success: true, data: address });
+  } catch (error) {
+    console.log("Error saving address: " + error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const deleteCustomerAddress = async (req, res) => {
+  const addressId = req.params.id;
+  try {
+    const results = await CustomerDeliveryAddress.destroy({
+      where: { id: addressId },
+    });
+    res.status(200).json({ success: true, data: results });
+  } catch (error) {
+    console.log("Error deleting address: " + error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+export const saveAllCustomerOrders = async (req, res) => {
+    const allPackages = req.body;
+    // console.log(allPackages, 'all package');
+    const result = await CustomerPackage.findAll({
+      where: {
+        payment_status: 1,
+      },
+      include: [{
+        model: VendorPackage,
+      }]
+    });
+    
+
+    console.log(result, 'all package');
+
+    for(let i= 0; i < result.length ; i++) {
+    console.log(result[i], i, 'all result');
+
+      await CustomerOrder.create({
+        user_id: result[i]?.user_id,
+        vendor_id: result[i].VendorPackage.vendor_id,
+        package_id: result[i].package_id,
+        created_date: result[i].created_date,
+        is_ready: 0,
+       is_delivered: 0,
+        subtotal: 0,
+        tax: 0,
+        total: result[i].VendorPackage.price_monthly,
+        customer_delivery_address_id: result[i].customer_delivery_address_id,
+      })
+      await CustomerPackage.destroy({ 
+        where:{ id: result[i].id}
+      }) 
+
+    }
+
+    res.status(200).json({ success: true, data: 'update' });
+
+  }

@@ -1,7 +1,9 @@
-import { sequelize } from '../../dbConfig.js'
-import { DataTypes } from 'sequelize';
+import { sequelize } from "../../dbConfig.js";
+import { DataTypes } from "sequelize";
 
-export const VendorLocations = sequelize.define('VendorLocations', {
+export const VendorLocations = sequelize.define(
+  "VendorLocations",
+  {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
@@ -14,7 +16,10 @@ export const VendorLocations = sequelize.define('VendorLocations', {
     },
     location_name: {
       type: DataTypes.STRING,
-      allowNull: false,      
+      allowNull: false,
+    },
+    phone: {
+      type: DataTypes.STRING,
     },
     address: {
       type: DataTypes.STRING,
@@ -23,8 +28,17 @@ export const VendorLocations = sequelize.define('VendorLocations', {
     city_id: {
       type: DataTypes.INTEGER,
       allowNull: true,
-    },    
-}, {
-    tableName: 'vendor_locations',
+    },
+    tax_percent: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    status: {
+      type: DataTypes.INTEGER,
+    },
+  },
+  {
+    tableName: "vendor_locations",
     timestamps: false,
-});
+  }
+);

@@ -1,12 +1,12 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import express from 'express';
 import bodyParser from 'body-parser';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import dotenv from 'dotenv';
 import vendorRoutes from './routes/routes.js';
 import path from 'path';
 
-dotenv.config();
 const app = express();
 app.use(express.json())
 const PORT = process.env.PORT || 5000;

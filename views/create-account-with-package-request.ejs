@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Application</title>
+    <style>
+      .container {
+        margin: auto;
+        padding: 20px;
+        border-radius: 10px;
+        background-color: #f9f9f9;
+        margin: auto;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 20px;
+
+        width: "100%";
+        align-items: center;
+        margin: auto;
+        text-align: center;
+      }
+      .header-inner {
+        display: flex;
+        flex-direction: row;
+        width: fit-content;
+        margin: auto;
+      }
+      .header h1 {
+        font-size: 30px;
+      }
+
+      .main {
+        /* text-align: center; */
+        /* display: flex; */
+        /* justify-content: center; */
+
+        justify-items: center;
+        /* margin-left: 25%; */
+      }
+
+      .main-container {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 5px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        width: 70%;
+        margin: auto;
+      }
+      .payment-method-details {
+        color: #333;
+        font-weight: 400;
+        font-size: 14px;
+      }
+      .package-container {
+        padding: 15px 0;
+      }
+      .border-top {
+        border-top: 1px solid #575656;
+      }
+      .border-bottom {
+        border-top: 1px solid #575656;
+      }
+      .bottom-text {
+        padding: 15px 0;
+      }
+      .font-bold {
+        font-weight: bold;
+      }
+      @media screen and (max-width: 480px) {
+        .main-container .btn {
+          margin: auto;
+          width: fit-content;
+          display: flex;
+          flex-wrap: wrap;
+        }
+        .main-container {
+          width: 100%;
+          margin: 0px;
+          padding: 3px;
+        }
+
+        .header-inner {
+          margin: auto;
+          width: fit-content;
+        }
+        .main {
+          margin-left: 0px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header Section -->
+      <div class="header">
+        <div class="header-inner">
+          <h1 style="color: red">Menu</h1>
+          <h1>scribe</h1>
+        </div>
+      </div>
+
+      <!-- Body Section -->
+      <div class="main">
+        <div class="main-container">
+          <p>
+            Your package request has been reveived by <%= restaurant_name %>
+            Please follow the payment instruction provided by the vendor below.
+            Once the vendor receives your payment, they will accept your package
+            request.
+          </p>
+
+          <% for (request of requests) { %>
+          <div class="package-container border-top">
+            <h3><%= request.VendorPackage.package_name %></h3>
+            <p>
+              <span class="font-bold"
+                ><%= request.VendorLocation.location_name %></span
+              >: <%= request.VendorLocation.phone %>
+            </p>
+            <p>Payment Method:</p>
+            <ul>
+              <% if(request.VendorLocation.VendorPaymentMethods.length > 0) {
+              for(method of request.VendorLocation.VendorPaymentMethods){ %>
+              <li>
+                <p class="font-bold">
+                  <%= method.PaymentMethod.method_name %>:
+                  <span class="payment-method-details">
+                    <%= method.instructions %>
+                  </span>
+                </p>
+              </li>
+              <%} }else{%>
+              <span>No payment methods are available for this package</span>
+              <%}%>
+            </ul>
+          </div>
+          <% } %>
+
+          <p class="bottom-text border-top">
+            If you have any questions, please contact the vendor using the
+            contact information above.
+          </p>
+        </div>
+
+        <!-- Footer Section -->
+      </div>
+    </div>
+    <script>
+      function redirectToUrl(url) {
+        // Redirect to the specified URL
+
+        console.log(url);
+        window.open(url);
+      }
+    </script>
+  </body>
+</html>

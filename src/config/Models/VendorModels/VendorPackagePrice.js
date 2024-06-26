@@ -12,6 +12,10 @@ export const VendorPackagePrice = sequelize.define('VendorPackagePrice', {
         type: DataTypes.INTEGER,
         allowNull: true,
     },
+    status: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+    },
     frequency: {
         type: DataTypes.ENUM('single', 'weekly', 'monthly'),
         allowNull: true,

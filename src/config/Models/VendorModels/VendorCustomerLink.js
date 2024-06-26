@@ -18,7 +18,7 @@ export const VendorCustomerLink = sequelize.define('VendorCustomerLink', {
     },
     package_id: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,
     },
     delivery_instructions: {
       type: DataTypes.TEXT,
@@ -27,6 +27,11 @@ export const VendorCustomerLink = sequelize.define('VendorCustomerLink', {
       type: DataTypes.INTEGER,
       allowNull: false,
     },
+    location_id: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
+    
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,

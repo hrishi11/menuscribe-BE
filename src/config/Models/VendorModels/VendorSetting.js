@@ -1,7 +1,9 @@
-import { sequelize } from '../../dbConfig.js'
-import { DataTypes } from 'sequelize';
+import { sequelize } from "../../dbConfig.js";
+import { DataTypes } from "sequelize";
 
-export const VendorSettings = sequelize.define('VendorSettings', {
+export const VendorSettings = sequelize.define(
+  "VendorSettings",
+  {
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
@@ -18,16 +20,13 @@ export const VendorSettings = sequelize.define('VendorSettings', {
     },
     stripe_key: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,
     },
     pause_option: {
       type: DataTypes.INTEGER,
       allowNull: true,
     },
-    cancel_option: {
-      type: DataTypes.INTEGER,
-      allowNull: true,
-    },
+
     menu_option: {
       type: DataTypes.INTEGER,
       allowNull: true,
@@ -40,7 +39,65 @@ export const VendorSettings = sequelize.define('VendorSettings', {
       type: DataTypes.INTEGER,
       allowNull: true,
     },
-  }, {
-    tableName: 'vendor_settings',
+    logo: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    about_title: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    about_description: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    food_title: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    food_description: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    service_area_title: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    service_area_description: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    public_phone: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    public_email: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    public_url: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    tax_default: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    cash_allowed: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    creditcard_allowed: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    interac_allowed: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+  },
+  {
+    tableName: "vendor_settings",
     timestamps: false,
-  });  
+  }
+);

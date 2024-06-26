@@ -1,28 +1,33 @@
-import nodemailer from 'nodemailer';
+import nodemailer from "nodemailer";
+import dotenv from "dotenv";
+
+dotenv.config();
+// Get the directory path of the current module
 
 // Create a transporter using SMTP transport
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  service: "gmail",
   auth: {
-    user: 'ahmad.saad.khn@gmail.com',
-    pass: 'dwidrgurzwwwlkwr',
+    user: `${process.env.SMTP_EMAIL}`,
+    pass: `${process.env.SMTP_PASSWORD}`,
   },
 });
 
 // Function to send email
-export const sendEmail = (to, subject, text) => {
+export const sendEmail = async (to, subject, text, html) => {
   const mailOptions = {
-    from: 'ahmad.saad.khn@gmail.com',
+    from: process.env.SMTP_EMAIL,
     to,
     subject,
     text,
+    html,
   };
 
   transporter.sendMail(mailOptions, (error, info) => {
     if (error) {
       console.error(error);
     } else {
-      console.log('Email sent: ' + info.response);
+      console.log("Email sent: " + info.response);
     }
   });
 };

@@ -19,7 +19,6 @@ export const sequelize = new Sequelize({
   database: 'menuscribe',
   logging: false
 });
-
 // Enable logging
 sequelize.authenticate().then(() => {
   console.log('Connection has been established successfully.');
