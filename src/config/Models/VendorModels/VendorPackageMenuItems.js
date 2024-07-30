@@ -30,10 +30,10 @@ export const VendorPackageMenuItems = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: false,
     },
-    // default_item_id: {
-    //   type: DataTypes.INTEGER,
-    //   allowNull: false,
-    // },
+    all_packages: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
     package_name: {
       type: DataTypes.STRING,
       allowNull: false,

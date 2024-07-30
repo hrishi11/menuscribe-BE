@@ -14,9 +14,26 @@ export const VendorLocations = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: false,
     },
+    latitude: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+    },
+    longitude: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+    },
     location_name: {
       type: DataTypes.STRING,
       allowNull: false,
+    },
+    delivery_instructions: {
+      type: DataTypes.STRING,
+    },
+    pickup_instructions: {
+      type: DataTypes.STRING,
+    },
+    unit_number: {
+      type: DataTypes.STRING,
     },
     phone: {
       type: DataTypes.STRING,
@@ -32,6 +49,12 @@ export const VendorLocations = sequelize.define(
     tax_percent: {
       type: DataTypes.INTEGER,
       allowNull: false,
+    },
+    postal_id: {
+      type: DataTypes.INTEGER,
+    },
+    postal: {
+      type: DataTypes.STRING,
     },
     status: {
       type: DataTypes.INTEGER,

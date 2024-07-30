@@ -5,13 +5,12 @@ export const VendorRoles = sequelize.define(
   "VendorRoles",
   {
     id: {
-        type: DataTypes.INTEGER,
-        primaryKey: true,
-        autoIncrement: true,
-        allowNull: false,
-      },
-  
-   
+      type: DataTypes.INTEGER,
+      primaryKey: true,
+      autoIncrement: true,
+      allowNull: false,
+    },
+
     role: {
       type: DataTypes.STRING,
       allowNull: true,

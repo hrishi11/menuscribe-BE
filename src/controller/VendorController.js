@@ -1,10 +1,11 @@
-import { Sequelize, Op } from "sequelize";
+import { Sequelize, Op, where } from "sequelize";
 import ejs from "ejs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { sendEmail } from "../utils/email.js";
 import fs from "fs";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import twilio from "twilio";
 
 import {
   UserCustomer,
@@ -53,7 +54,6 @@ import { VendorDrivers } from "../config/Models/VendorModels/VendorDrivers.js";
 import { DriverDeliveries } from "../config/Models/VendorModels/DriverDeliveries.js";
 import { response } from "express";
 import crypto from "crypto";
-import { VendorDriverCities } from "../config/Models/VendorModels/VendorDriverCities.js";
 import { customerOrderById } from "./CustomerController.js";
 import { CustomerPackageSubscription } from "../config/Models/CustomerModels/CustomerPackageSubscription.js";
 import { VendorPackageSlots } from "../config/Models/VendorModels/VendorPackageSlots.js";
@@ -70,6 +70,10 @@ import { VendorCustomerPaymentLog } from "../config/Models/VendorModels/VendorCu
 import { VendorTax } from "../config/Models/VendorModels/VendorTax.js";
 import { VendorWebsiteSetting } from "../config/Models/VendorModels/VendorWebsiteSetting.js";
 import S3Upload, { s3 } from "../utils/S3 Config/S3 config.js";
+import { PlatformVendorBilling } from "../config/Models/VendorModels/PlatformVendorBilling.js";
+import { Plans } from "../config/Models/VendorModels/Plans.js";
+import { VendorTamplateDesigner } from "../config/Models/VendorModels/VendorTamplateDesigner.js";
+import { VendorDriverPostalRegions } from "../config/Models/VendorModels/VendorDriverCities.js";
 
 // const storage = multer.diskStorage({
 //   destination: (req, file, cb) => {
@@ -105,11 +109,11 @@ function matchPassword(user, password) {
 
 export const getCustomers = async (req, res) => {
   try {
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const locationIds = await loggedInUserLocation(req);
     const vendorUser = await UserVendor.findByPk(loggedInUserId);
     const users = await UserCustomer.findAll({
-      where: { vendor_id: vendorUser.vendor_id },
+      // where: { vendor_id: vendorUser.vendor_id },
       order: [["id", "DESC"]],
       include: [
         {
@@ -201,7 +205,7 @@ export const getVendor = async (req, res) => {
     const loggedInUserId = loggedInUser(req);
 
     const vendorSetting = await VendorSettings.findOne({
-      where: { vendor_id: loggedInUserId },
+      where: { vendor_id: loggedInUserId.userId },
     });
     let methods = [];
     if (vendorSetting.dataValues.cash_allowed == 1) {
@@ -214,9 +218,9 @@ export const getVendor = async (req, res) => {
       methods.push(1);
     }
 
-    const vendorUser = await UserVendor.findByPk(loggedInUserId);
+    // const vendorUser = await UserVendor.findByPk(loggedInUserId);
     const vendor = await Vendor.findOne({
-      where: { id: vendorUser.vendor_id },
+      where: { id: loggedInUserId.vendor_id },
     });
 
     const locations = await VendorLocations.findAll({
@@ -276,7 +280,7 @@ export const getVendor = async (req, res) => {
 
 // export const getVendor = async (req, res) => {
 //   try {
-//     const loggedInUserId = loggedInUser(req);
+//     const loggedInUserId = loggedInUser(req).userId;
 
 //     const vendorSetting = await VendorSettings.findOne({
 //       where: { vendor_id: loggedInUserId },
@@ -365,7 +369,7 @@ export const setVendorPaymentMethods = async (req, res) => {
   try {
     const paymentMethods = req.body.methods;
     console.log(req.body);
-    const vendor_id = loggedInUser(req);
+    const vendor_id = loggedInUser(req).userId;
     for (const method of paymentMethods) {
       if (method.VendorPaymentMethod) {
         const vendorPaymentMethod = await VendorPaymentMethods.findByPk(
@@ -424,7 +428,7 @@ export const getVendorPackagesForVendorLocation = async (req, res) => {
 };
 export const getVendorPackagesForVendor = async (req, res) => {
   try {
-    const vendor_id = loggedInUser(req);
+    const vendor_id = loggedInUser(req).userId;
 
     const vendorPackages = await VendorPackage.findAll({
       where: { vendor_id },
@@ -442,7 +446,7 @@ export const getVendorPackagesForVendor = async (req, res) => {
     });
   }
 };
-export const deletLocation = async (req, res) => {
+export const deleteLocation = async (req, res) => {
   try {
     const id = req.params.id;
     const vendorLocation = await VendorLocations.findByPk(id);
@@ -820,23 +824,20 @@ export const getPostalRegions = async (req, res) => {
 // };
 
 function generateDummyPassword() {
-  const timestamp = Date.now().toString();
-  const characters =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  const length = 8;
-
+  const chars = "abcdefghijklmnopqrstuvwxyz";
+  const passwordLength = 8; // Set the password length to 8 characters
   let password = "";
 
-  for (let i = 0; i < length; i++) {
-    const randomIndex = Math.floor(Math.random() * characters.length); // Generate random index
-    password += characters[randomIndex]; // Add random character to password
+  for (let i = 0; i < passwordLength; i++) {
+    const randomIndex = Math.floor(Math.random() * chars.length);
+    password += chars[randomIndex];
   }
 
-  return timestamp + password; // Concatenate timestamp and password
+  return password;
 }
 export const addDriver = async (req, res) => {
   try {
-    const id = loggedInUser(req);
+    const id = loggedInUser(req).vendor_id;
     const dummyPassowrd = generateDummyPassword();
     const hash = hashPassword(dummyPassowrd);
     const addUser = await UserVendor.create({
@@ -846,9 +847,15 @@ export const addDriver = async (req, res) => {
       phone: req.body.phoneNo,
       vendor_id: id,
       role: "Rider",
+      role_id: 3,
       password: hash,
     });
 
+    const addEmployee = await VendorEmployee.create({
+      user_vendor_id: addUser.id,
+      vendor_id: id,
+      vendor_role_id: 3,
+    });
     await addUser.save();
 
     const currentDate = new Date();
@@ -870,7 +877,7 @@ export const addDriver = async (req, res) => {
     if (req.body.cities) {
       req.body.cities.forEach(async (city) => {
         try {
-          const result = await VendorDriverCities.create({
+          const result = await VendorDriverPostalRegions.create({
             vendor_id: id,
             driver_id: addUser.id,
             city_id: city.VendorLocation.CitiesAll.id,
@@ -882,7 +889,9 @@ export const addDriver = async (req, res) => {
       });
     }
 
-    res.status(200).send("Driver added successfully");
+    res
+      .status(200)
+      .json({ success: true, message: "Driver added successfully" });
   } catch (error) {
     console.log(error);
     res.status(500).send(error || "internal server Error");
@@ -890,8 +899,10 @@ export const addDriver = async (req, res) => {
 };
 export const getVendorDrivers = async (req, res) => {
   try {
-    const id = loggedInUser(req);
-
+    const id = loggedInUser(req).userId;
+    const vendor_id = loggedInUser(req).vendor_id;
+    // const user = UserVendor.findByPk(id);
+    console.log(id);
     let response;
     const locationIds = await loggedInUserLocation(req);
     if (req.query.date) {
@@ -901,6 +912,7 @@ export const getVendorDrivers = async (req, res) => {
           {
             model: CustomerOrder,
             as: "CustomerOrder",
+            required: false,
             include: [
               {
                 model: UserCustomer,
@@ -921,42 +933,80 @@ export const getVendorDrivers = async (req, res) => {
               {
                 model: CustomerDeliveryAddress,
               },
-              //
             ],
+            required: false,
             where: { is_ready: 1 },
           },
         ],
       });
     } else {
-      response = await VendorEmployee.findAll({
-        where: { vendor_id: id, vendor_role_id: 3 },
-        order: [["id", "DESC"]],
+      response = await Vendor.findOne({
+        where: { id: vendor_id },
         include: [
           {
-            model: VendorEmployeeLocations,
-            where: { vendor_employee_id: { [Op.in]: [...locationIds] } },
-            required: true,
-          },
-          {
-            model: CustomerOrder,
-            where: { is_ready: 1 },
-            required: false,
+            model: VendorEmployee,
             include: [
               {
-                model: UserCustomer,
-                as: "UserCustomer",
-                attributes: [
-                  "first_name",
-                  "last_name",
-                  "phone",
-                  "address_1",
-                  "address_2",
+                model: VendorEmployeeLocations,
+                where: { vendor_employee_id: { [Op.in]: [...locationIds] } },
+                required: false,
+              },
+              {
+                model: UserVendor,
+                where: { role_id: 3 },
+                required: true,
+              },
+              {
+                model: CustomerOrder,
+                where: { is_ready: 1 },
+                required: false,
+                include: [
+                  {
+                    model: UserCustomer,
+                    as: "UserCustomer",
+                    attributes: [
+                      "first_name",
+                      "last_name",
+                      "phone",
+                      "address_1",
+                      "address_2",
+                    ],
+                  },
                 ],
               },
             ],
           },
         ],
       });
+      // response = await VendorEmployee.findAll({
+      //   where: { vendor_id: id, vendor_role_id: 3 },
+      //   order: [["id", "DESC"]],
+      //   include: [
+      //     {
+      //       model: VendorEmployeeLocations,
+      //       where: { vendor_employee_id: { [Op.in]: [...locationIds] } },
+      //       required: true,
+      //     },
+      //     {
+      //       model: CustomerOrder,
+      //       where: { is_ready: 1 },
+      //       required: false,
+      //       include: [
+      //         {
+      //           model: UserCustomer,
+      //           as: "UserCustomer",
+      //           attributes: [
+      //             "first_name",
+      //             "last_name",
+      //             "phone",
+      //             "address_1",
+      //             "address_2",
+      //           ],
+      //         },
+      //       ],
+      //     },
+      //   ],
+      // });
     }
 
     res.status(200).json({ message: "OK", success: true, data: response });
@@ -994,7 +1044,7 @@ export const setVendor = async (req, res) => {
 
 export const setNewVendorLocation = async (req, res) => {
   try {
-    // const loggedInUserId = loggedInUser(req);
+    // const loggedInUserId = loggedInUser(req).userId;
     const postalRegions = req.body.postalRegious;
     res.status(200).json({
       message: "updated successfully",
@@ -1010,13 +1060,21 @@ export const setNewVendorLocation = async (req, res) => {
 
 export const setVendorLocation = async (req, res) => {
   try {
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const reqBody = req.body.locationData;
-    const regionBody = req.body.postalData;
+    const regionBody = req.body?.postalData;
+
+    const postal = await PostalRegions.findOne({
+      where: { POSTAL_CODE: reqBody?.postal.split(" ")[0] },
+    });
+
     const vendorUser = await UserVendor.findByPk(loggedInUserId);
+    vendorUser.postal_id = postal.dataValues.id;
+    await vendorUser.save();
     const locations = await VendorLocations.findAll({
       where: { vendor_id: vendorUser.vendor_id },
     });
+
     const isGonnaUpdate = locations.filter((l) => l.id === reqBody.id);
     if (isGonnaUpdate.length > 0) {
       const location = await VendorLocations.findByPk(isGonnaUpdate[0].id);
@@ -1024,6 +1082,13 @@ export const setVendorLocation = async (req, res) => {
       location.location_name = location_name;
       location.address = address;
       location.city_id = city_id;
+      location.latitude = reqBody?.latitude;
+      location.longitude = reqBody?.longitude;
+      location.unit_number = reqBody?.unit_number;
+      location.postal = reqBody?.postal;
+      location.postal_id = postal.dataValues.id;
+      location.delivery_instructions = reqBody?.delivery_instructions;
+      location.pickup_instructions = reqBody?.pickup_instructions;
       // VendorLocationServiceAreas.
       location.save();
       for (let i = 0; i < service_area.length; i++) {
@@ -1104,11 +1169,20 @@ export const setVendorLocation = async (req, res) => {
     } else {
       const { location_name, address, city_id, vendor_id, service_area } =
         reqBody;
+      console.log("enter");
       const locationSet = await VendorLocations.create({
         location_name,
         address,
         city_id,
         vendor_id,
+        latitude: reqBody?.latitude,
+        longitude: reqBody?.longitude,
+        delivery_instructions: reqBody?.delivery_instructions || "",
+        pickup_instructions: reqBody?.pickup_instructions || "",
+        tax_percent: 0,
+        postal: reqBody.postal,
+        postal_id: postal.dataValues.id,
+        unit_number: reqBody.unit_number,
         status: 1,
       });
       for (let i = 0; i < service_area.length; i++) {
@@ -1125,6 +1199,7 @@ export const setVendorLocation = async (req, res) => {
       });
     }
   } catch (error) {
+    console.log(error);
     res.status(500).json({
       message: "Error on saving vendor location",
       error,
@@ -1136,18 +1211,24 @@ export const setVendorLocation = async (req, res) => {
 export const getDeliveriesByCreateDate = async (req, res) => {
   try {
     const { created_date } = req.body;
-    const tempDate = new Date(created_date);
-    const userDateObj = new Date(created_date);
-    // userDateObj.setDate(tempDate.getDate);
 
-    const loggedInUserId = loggedInUser(req);
+    // Create date object for the given date
+    const tempDate = new Date(created_date);
+
+    // Adjust the date to remove any time component
+    tempDate.setHours(0, 0, 0, 0);
+
+    // Get the user ID and vendor details
+    const loggedInUserId = loggedInUser(req).userId;
     const vendorUser = await UserVendor.findByPk(loggedInUserId);
     const locationIds = await loggedInUserLocation(req);
+
+    // Query the database for orders on the adjusted date
     const results = await CustomerOrder.findAll({
       where: {
         is_ready: 1,
         vendor_id: vendorUser.vendor_id,
-        order_date: new Date(tempDate.toISOString().split("T")[0]),
+        order_date: tempDate.toISOString().split("T")[0],
         vendor_location_id: { [Op.in]: [...locationIds] },
       },
       include: [
@@ -1161,6 +1242,9 @@ export const getDeliveriesByCreateDate = async (req, res) => {
             "address_1",
             "address_2",
           ],
+        },
+        {
+          model: UserVendor,
         },
         {
           model: VendorPackage,
@@ -1177,22 +1261,6 @@ export const getDeliveriesByCreateDate = async (req, res) => {
       ],
     });
 
-    // let finalResult = [];
-    // for (let result of results) {
-    //   // console.log(typeof result.created_date)
-    //   let { order_date: currentDateObj } = result;
-    //   if (!currentDateObj) continue;
-    //   currentDateObj = new Date(currentDateObj);
-    //   const dateMatch =
-    //     (currentDateObj.getUTCFullYear() === userDateObj.getUTCFullYear()) &
-    //     (currentDateObj.getMonth() === userDateObj.getMonth()) &
-    //     (currentDateObj.getUTCDate() === userDateObj.getUTCDate());
-
-    //   if (dateMatch) {
-    //     finalResult.push(result);
-    //     // console.log(result);
-    //   }
-    // }
     res.status(200).json({ success: true, data: results });
   } catch (error) {
     console.log("Error fetching customer_order: " + error);
@@ -1328,7 +1396,7 @@ export const setDelivered = async (req, res) => {
 export const uploadDeliveryImage = async (req, res) => {
   try {
     const { deliveryId } = req.body;
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     if (!req.file) {
       return res.status(400).json({ error: "No Image Found!" });
     }
@@ -1359,7 +1427,7 @@ export const uploadDeliveryImage = async (req, res) => {
 
 export const getPackages = async (req, res) => {
   try {
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
 
     // const id= req.params.id
     const vendorUser = await UserVendor.findOne({
@@ -1408,7 +1476,7 @@ export const getPackages = async (req, res) => {
 };
 export const getVendorPackages = async (req, res) => {
   try {
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const location_id = req.params.id;
     const vendorUser = await UserVendor.findByPk(loggedInUserId);
     // const loggedInUserData = await UserCustomer.findOne({
@@ -1445,11 +1513,27 @@ export const getVendorPackages = async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
+export const getAllVendorPackages = async (req, res) => {
+  try {
+    const loggedInUserId = loggedInUser(req).userId;
+
+    const results = await VendorPackage.findAll({
+      where: {
+        vendor_id: loggedInUserId,
+      },
+    });
+
+    res.status(200).json({ success: true, data: results });
+  } catch (error) {
+    console.log("Error fetching packages: " + error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
 
 export const getPackage = async (req, res) => {
   try {
     const { id } = req.params;
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const vendorUser = await UserVendor.findByPk(loggedInUserId);
     const results = await VendorPackage.findOne({
       include: [
@@ -1497,7 +1581,7 @@ export const getPackage = async (req, res) => {
 
 export const getVendorSettingInfo = async (req, res) => {
   try {
-    const id = loggedInUser(req);
+    const id = loggedInUser(req).userId;
 
     const getData = await VendorSetting.findOne({ where: { vendor_id: id } });
     res.status(200).json({ success: true, data: getData });
@@ -1508,7 +1592,7 @@ export const getVendorSettingInfo = async (req, res) => {
 };
 export const getVendorSettingsInfo = async (req, res) => {
   try {
-    const id = loggedInUser(req);
+    const id = loggedInUser(req).userId;
     // const id = req.body.params;
     const findCustomer = await UserCustomer.findByPk(id);
     const findVendor = await UserVendor.findByPk(
@@ -1525,7 +1609,7 @@ export const getVendorSettingsInfo = async (req, res) => {
 };
 export const getVendorPackagePrice = async (req, res) => {
   try {
-    const id = loggedInUser(req);
+    const id = loggedInUser(req).userId;
 
     const getData = await VendorPackagePrice.findOne({
       where: { package_id: req.params.id },
@@ -1538,7 +1622,7 @@ export const getVendorPackagePrice = async (req, res) => {
 };
 export const setVendorSettingInfo = async (req, res) => {
   try {
-    const id = loggedInUser(req);
+    const id = loggedInUser(req).userId;
     const existingSetting = await VendorSetting.findOne({
       wher: { vendor_id: id },
     });
@@ -1571,7 +1655,7 @@ export const getProvince = async (req, res) => {
 };
 export const addItem = async (req, res) => {
   try {
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const vendorUser = await UserVendor.findByPk(loggedInUserId);
     upload.single("file")(req, res, async (err) => {
       const imageBuffer = req.file ? req.file.buffer : "";
@@ -1617,7 +1701,7 @@ export const addItem = async (req, res) => {
 
 export const getActivePromotion = async (req, res) => {
   try {
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const activePromotions = await VendorCoupon.findAll({
       where: { status: 1, vendor_id: loggedInUserId },
       include: [
@@ -1644,7 +1728,7 @@ export const getActivePromotion = async (req, res) => {
 };
 export const getInactivePromotion = async (req, res) => {
   try {
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const InactivePromotions = await VendorCoupon.findAll({
       where: { status: 0, vendor_id: loggedInUserId },
       include: [
@@ -1671,7 +1755,7 @@ export const getInactivePromotion = async (req, res) => {
 
 export const setPromotions = async (req, res) => {
   try {
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const {
       prices,
       coupon_code,
@@ -1755,10 +1839,10 @@ export const deletePromotion = async (req, res) => {
 };
 export const setCustomerPackageRequest = async (req, res) => {
   try {
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const reqBody = req.body;
     // console.log(reqBody);
-    const loggedUser = loggedInUser(req);
+    const loggedUser = loggedInUser(req).userId;
 
     const user = await UserCustomer.findByPk(loggedUser);
     for (const pack of reqBody) {
@@ -1827,7 +1911,7 @@ export const setCustomerPackageRequest = async (req, res) => {
 
 export const getItems = async (req, res) => {
   try {
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const vendorUser = await UserVendor.findByPk(loggedInUserId);
     const results = await VendorMenuItems.findAll({
       where: { vendor_id: vendorUser.vendor_id },
@@ -1846,7 +1930,7 @@ export const getItems = async (req, res) => {
 };
 export const getCouponTypes = async (req, res) => {
   try {
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const results = await CouponTypes.findAll();
     res.status(200).json({ success: true, data: results });
   } catch (error) {
@@ -1866,7 +1950,7 @@ export const getServingMesurements = async (req, res) => {
 
 export const getVendorCategories = async (req, res) => {
   try {
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const results = await CategoryVendor.findAll({
       where: { vendor_id: loggedInUserId },
       include: {
@@ -1882,7 +1966,7 @@ export const getVendorCategories = async (req, res) => {
 
 export const getCategories = async (req, res) => {
   try {
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const categories = await CategoryVendor.findAll({
       where: { vendor_id: loggedInUserId },
       include: {
@@ -1916,7 +2000,7 @@ export const getItem = async (req, res) => {
 
 export const getVendorPackageFrequency = async (req, res) => {
   try {
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const result = await VendorPackageFrequency.findAll({
       where: { vendor_id: loggedInUserId },
     });
@@ -2005,7 +2089,7 @@ export const addDefaultItem = async (req, res) => {
 
 export const getGlobalDefaultItems = async (req, res) => {
   try {
-    const id = loggedInUser(req);
+    const id = loggedInUser(req).userId;
     const fetchData = await VendorPackageDefaultItem.findAll({
       where: { package_id: 0, all_packages: 1 },
       include: [
@@ -2022,7 +2106,7 @@ export const getGlobalDefaultItems = async (req, res) => {
 
 export const getCustomerPaymentLog = async (req, res) => {
   try {
-    const id = loggedInUser(req);
+    const id = loggedInUser(req).userId;
     const fetchData = await VendorCustomerPaymentLog.findAll({
       where: { customer_id: req.params.id },
       include: [
@@ -2041,7 +2125,7 @@ export const getCustomerPaymentLog = async (req, res) => {
 };
 export const getVendorTax = async (req, res) => {
   try {
-    const id = loggedInUser(req);
+    const id = loggedInUser(req).userId;
     const fetchData = await VendorTax.findAll({
       where: { vendor_id: id },
     });
@@ -2055,7 +2139,7 @@ export const getVendorTax = async (req, res) => {
 
 export const setCustomerPaymentMethod = async (req, res) => {
   try {
-    const id = loggedInUser(req);
+    const id = loggedInUser(req).userId;
     const setData = await VendorCustomerPaymentLog.create({
       vendor_id: id,
       customer_id: req.body.id,
@@ -2073,7 +2157,7 @@ export const setCustomerPaymentMethod = async (req, res) => {
 };
 export const setUserCustomersByVendor = async (req, res) => {
   try {
-    const id = loggedInUser(req);
+    const id = loggedInUser(req).userId;
     const reqBody = req.body;
     console.log(reqBody.length);
 
@@ -2152,7 +2236,7 @@ export const setStoreInfo = async (req, res) => {
     const createVendor = await Vendor.create({
       vendor_name: req.body.storeName,
       email: req.body.email,
-      postal_code: req.body.postal,
+      postal_code: req.body.getPostal,
       phone: req.body.phone,
       city_id: req.body.city_id,
       address: req.body.address,
@@ -2173,18 +2257,32 @@ export const setStoreInfo = async (req, res) => {
     const saveLocation = await VendorLocations.create({
       vendor_id: createVendor.dataValues.id,
       location_name: req.body.city,
+      latitude: req.body.latitude,
+      tax_percent: 0,
+      longitude: req.body.longitude,
       address: req.body.address,
       city_id: req.body.city_id,
       status: 1,
     });
     await saveLocation.save();
     postalRegious.forEach(async (region) => {
-      const response = await VendorLocationPostalRegions.create({
-        vendor_location_id: saveLocation.dataValues.id,
-        postal_region_id: region.postal_region_id,
-        postal_region_value: region.label,
-        vendor_id: createVendor.dataValues.id,
-      });
+      // const response = await VendorLocationPostalRegions.create({
+      //   vendor_location_id: saveLocation.dataValues.id,
+      //   postal_region_id: region.postal_region_id,
+      //   postal_region_value: region.label,
+      //   vendor_id: createVendor.dataValues.id,
+      // });
+      await Promise.all(
+        region.location.map(async (item) => {
+          const response = await VendorLocationPostalRegions.create({
+            vendor_location_id: saveLocation.dataValues.id,
+            postal_region_id: item.id,
+            postal_region_value: item.label,
+            vendor_id: createVendor.dataValues.id,
+          });
+          return response;
+        })
+      );
     });
 
     return res
@@ -2202,7 +2300,7 @@ export const setStoreInfo = async (req, res) => {
 
 export const validateEmployee = async (req, res) => {
   try {
-    const id = loggedInUser(req);
+    const id = loggedInUser(req).userId;
     const { role } = req.body;
     const employee = await VendorEmployee.findOne({
       where: { user_vendor_id: id },
@@ -2211,7 +2309,10 @@ export const validateEmployee = async (req, res) => {
     if (!employee) {
       return res.status(500).json({ message: "No employee found" });
     }
-    if (employee.VendorRole.dataValues.role === role) {
+    console.log(employee.VendorRole.dataValues.role, role);
+    if (
+      employee.VendorRole.dataValues.role.toLowerCase() === role.toLowerCase()
+    ) {
       return res
         .status(200)
         .json({ access: true, message: "Validate successfully" });
@@ -2226,10 +2327,11 @@ export const validateEmployee = async (req, res) => {
 };
 export const getEmployees = async (req, res) => {
   try {
-    const id = loggedInUser(req);
+    const id = loggedInUser(req).userId;
+    const findUser = await UserVendor.findOne({ where: { id } });
     const locationIds = await loggedInUserLocation(req);
     const employees = await VendorEmployee.findAll({
-      where: { vendor_id: id },
+      where: { vendor_id: findUser.dataValues.vendor_id },
       include: [
         {
           model: VendorRoles,
@@ -2239,10 +2341,14 @@ export const getEmployees = async (req, res) => {
         },
         {
           model: VendorEmployeeLocations,
-          where: { vendor_location_id: { [Op.in]: [...locationIds] } },
+          required: false,
+          // where: { vendor_location_id: { [Op.in]: [...locationIds] } },
           include: { model: VendorLocations },
         },
       ],
+    });
+    const vendorSettings = await VendorSettings.findOne({
+      where: { vendor_id: findUser.dataValues.vendor_id },
     });
 
     let results = [];
@@ -2258,7 +2364,9 @@ export const getEmployees = async (req, res) => {
     //   });
     // }
 
-    res.status(200).json({ success: true, data: employees });
+    res
+      .status(200)
+      .json({ success: true, data: employees, settings: vendorSettings });
   } catch (error) {
     console.log(error);
     res.status(500).json({ error: "Internal Server Error" });
@@ -2267,38 +2375,190 @@ export const getEmployees = async (req, res) => {
 export const setEmployee = async (req, res) => {
   try {
     const { UserVendor: UVendor } = req.body;
-    const employee = await VendorEmployee.findByPk(req.body.id);
+    const id = loggedInUser(req).userId;
+    if (req.body.id) {
+      const employee = await VendorEmployee.findByPk(req.body.id);
+      console.log(req.body);
+      // employee.role = req.body.VendorRole.role;
+      // employee.delivery_page = req.body.delivery_page;
+      // employee.vendor_role_id = req.body.VendorRole?.id;
+      // employee.delivery_manager_page = req.body.delivery_management_page;
+      // employee.customers_page = req.body.customers_page;
+      // employee.add_customer_page = req.body.add_customer_page;
+      // employee.create_menu_page = req.body.create_menu_page;
+      // employee.status = req.body.status;
+      // employee.settings_page = req.body.settings_page;
+      // employee.dashboard_page = req.body.dashboard_page;
+      // employee.packages_page = req.body.packages_page;
+      // employee.package_requests_page = req.body.package_requests_page;
+      // employee.customer_orders_page = req.body.customer_orders_page;
+      // employee.order_summary_page = req.body.order_summary_page;
+      // employee.order_manager_page = req.body.order_manager_page;
+      // employee.my_team_page = req.body.my_team_page;
+      // employee.all_subscriptions_page = req.body.all_subscriptions_page;
+      // employee.team_settings_page = req.body.team_settings_page;
+      // employee.promotions_page = req.body.promotions_page;
+      // employee.locations_page = req.body.locations_page;
+      // employee.get_started_page = req.body.get_started_page;
+      // employee.upload_users_page = req.body.upload_users_page;
+      // employee.multiple_menu_editor_page = req.body.multiple_menu_editor_page;
+      // employee.website_setting_page = req.body.website_setting_page;
+      // employee.payments_page = req.body.payments_page;
+      // employee.billing_page = req.body.billing_page;
+      // employee.payment_settings_page = req.body.payment_settings_page;
+      // employee.ad_desginer_page = req.body.ad_desginer_page;
+      const fields = [
+        "role",
+        "delivery_page",
+        "vendor_role_id",
+        "delivery_manager_page",
+        "customers_page",
+        "add_customer_page",
+        "create_menu_page",
+        "status",
+        "settings_page",
+        "dashboard_page",
+        "packages_page",
+        "package_requests_page",
+        "customer_orders_page",
+        "order_summary_page",
+        "order_manager_page",
+        "my_team_page",
+        "all_subscriptions_page",
+        "team_settings_page",
+        "promotions_page",
+        "locations_page",
+        "get_started_page",
+        "upload_users_page",
+        "multiple_menu_editor_page",
+        "website_setting_page",
+        "payments_page",
+        "billing_page",
+        "payment_settings_page",
+        "ad_desginer_page",
+      ];
 
-    employee.role = req.body.role;
-    employee.delivery_page = req.body.delivery_page;
-    employee.delivery_management_page = req.body.delivery_management_page;
-    employee.customers_page = req.body.customers_page;
-    employee.add_customer_page = req.body.add_customer_page;
-    employee.menu_page = req.body.menu_page;
-    employee.status = req.body.status;
-    employee.settings_page = req.body.settings_page;
-    employee.homepage = req.body.homepage;
-    employee.packages_page = req.body.packages_page;
-    employee.package_requests_page = req.body.package_requests_page;
-    employee.customer_orders_page = req.body.customer_orders_page;
-    employee.order_summary_page = req.body.order_summary_page;
-    employee.order_manager_page = req.body.order_manager_page;
-    employee.team_page = req.body.team_page;
-    employee.all_subscriptions_page = req.body.all_subscriptions_page;
-    employee.team_settings_page = req.body.team_settings_page;
-    employee.promotions_page = req.body.promotions_page;
-    employee.locations_page = req.body.locations_page;
-    await employee.save();
+      fields.forEach((field) => {
+        if (req.body[field] !== undefined) {
+          employee[field] = req.body[field];
+        }
+      });
 
-    const UserVend = await UserVendor.findByPk(UVendor.id);
-    UserVend.first_name = UVendor.first_name;
-    UserVend.last_name = UVendor.last_name;
-    UserVend.email = UVendor.email;
-    UserVend.phone = UVendor.phone;
+      await employee.save();
 
-    await UserVend.save();
+      const UserVend = await UserVendor.findByPk(UVendor.id);
+      UserVend.first_name = UVendor.first_name;
+      UserVend.last_name = UVendor.last_name;
+      UserVend.email = UVendor.email;
+      UserVend.phone = UVendor.phone;
 
-    res.status(200).json({ success: true, message: "Successfull" });
+      await UserVend.save();
+
+      const locations = await Promise.all(
+        req.body.VendorEmployeeLocations.map(async (item) => {
+          const check = await VendorEmployeeLocations.findOne({
+            where: {
+              vendor_location_id: item.vendor_location_id,
+              vendor_employee_id: item.vendor_employee_id,
+            },
+          });
+          if (!check) {
+            const loc = await VendorEmployeeLocations.create({
+              vendor_employee_id: employee.dataValues.id,
+              vendor_location_id: item.vendor_location_id,
+            });
+          }
+        })
+      );
+      res.status(200).json({
+        success: true,
+        message: "Successfull",
+        emp_id: employee.dataValues.id,
+      });
+    } else {
+      const findVendor = await Vendor.findOne({ where: { id } });
+      const password = generateDummyPassword();
+
+      const accountSid = process.env.TWILIO_ACCOUNT_SID;
+      const authToken = process.env.TWILIO_AUTH_TOKEN;
+      const client = twilio(accountSid, authToken);
+      const message = `
+${findVendor.dataValues.vendor_name} has created a Menuscribe employee account for you. 
+Please log in at the following link:
+http://localhost:5173/admin-login
+            
+Username: ${UVendor.email}
+Password: ${password}
+`;
+      const send = await client.messages.create({
+        // body: `click the following link to create a new account http://localhost:5173/customer-onboard/${pin}.`,
+        body: message,
+        from: "+16474928950",
+        to: UVendor.phone,
+        // to: "+923019475033",
+      });
+
+      const UserVend = await UserVendor.create({
+        first_name: UVendor.first_name,
+        last_name: UVendor.last_name,
+        password: hashPassword(password),
+        email: UVendor.email,
+        phone: UVendor.phone,
+      });
+
+      const findRole = await VendorRoles.findOne({
+        where: { role: req.body.role },
+      });
+
+      const employee = await VendorEmployee.create({
+        user_vendor_id: UserVend.dataValues.id,
+        vendor_id: id,
+        join_date: new Date(),
+        role: req.body.role,
+        vendor_role_id: findRole ? findRole.dataValues.id : 0,
+        delivery_cost: 0,
+        delivery_page: req.body.delivery_page,
+        delivery_manager_page: req.body.delivery_manager_page,
+        customers_page: req.body.customers_page,
+        add_customer_page: req.body.add_customer_page,
+        create_menu_page: req.body.create_menu_page,
+        status: req.body.status,
+        settings_page: req.body.settings_page,
+        dashboard_page: req.body.dashboard_page,
+        packages_page: req.body.packages_page,
+        package_requests_page: req.body.package_requests_page,
+        customer_orders_page: req.body.customer_orders_page,
+        order_summary_page: req.body.order_summary_page,
+        order_manager_page: req.body.order_manager_page,
+        my_team_page: req.body.my_team_page,
+        all_subscriptions_page: req.body.all_subscriptions_page,
+        team_settings_page: req.body.team_settings_page,
+        promotions_page: req.body.promotions_page,
+        locations_page: req.body.locations_page,
+        get_started_page: req.body.get_started_page,
+        upload_users_page: req.body.upload_users_page,
+        multiple_menu_editor_page: req.body.multiple_menu_editor_page,
+        website_setting_page: req.body.website_setting_page,
+        payments_page: req.body.payments_page,
+        billing_page: req.body.billing_page,
+        payment_settings_page: req.body.payment_settings_page,
+        ad_desginer_page: req.body.ad_desginer_page,
+      });
+
+      const locations = await Promise.all(
+        req.body.VendorEmployeeLocations.map(async (item) => {
+          const loc = await VendorEmployeeLocations.create({
+            vendor_employee_id: employee.dataValues.id,
+            vendor_location_id: item.vendor_location_id,
+          });
+        })
+      );
+      res.status(200).json({
+        success: true,
+        message: "Successfull",
+        emp_id: employee.dataValues.id,
+      });
+    }
   } catch (error) {
     console.log(error);
     res.status(500).json({ error: "Internal Server Error" });
@@ -2338,7 +2598,7 @@ export const deleteEmployeeLocation = async (req, res) => {
 
 // export const getVendorEmployee = async (req, res) => {
 //   try {
-//     const vendorId = loggedInUser(req);
+//     const vendorId = loggedInUser(req).userId;
 //     const getEmployees = await VendorEmployee.findAll({
 //       where: { vendor_id: vendorId },
 //       include: [{ model: UserVendor }, { model: VendorEmployeeLocations }],
@@ -2356,7 +2616,7 @@ export const deleteEmployeeLocation = async (req, res) => {
 // };
 export const getVendorLocations = async (req, res) => {
   try {
-    const id = loggedInUser(req);
+    const id = loggedInUser(req).userId;
     const vendorLocations = await VendorLocations.findAll({
       where: { vendor_id: id, status: 1 },
       include: [CitiesAll],
@@ -2372,11 +2632,117 @@ export const getVendorLocations = async (req, res) => {
 export const getVendorEmployee = async (req, res) => {
   try {
     const { VendorEmployeeId } = req.body;
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
+    const vendor = await UserVendor.findOne({ where: { id: loggedInUserId } });
     const vendorEmployee = await VendorEmployee.findOne({
       where: { id: VendorEmployeeId, user_vendor_id: loggedInUserId },
     });
-    res.json({ message: "successfully", success: true, data: vendorEmployee });
+    res.json({
+      message: "successfully",
+      success: true,
+      data: vendorEmployee,
+      vendor: vendor,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Failed to get vendor employee" });
+  }
+};
+export const getVendorSettingsById = async (req, res) => {
+  try {
+    const vendorEmployee = await VendorSettings.findOne({
+      where: { vendor_id: req.params.id },
+    });
+    const vendor = await UserVendor.findByPk(req.params.id);
+
+    res.json({
+      message: "successful",
+      success: true,
+      data: vendorEmployee,
+      vendor: vendor,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Failed to get vendor employee" });
+  }
+};
+
+export const getAllUserVendors = async (req, res) => {
+  try {
+    const users = await Vendor.findAll({});
+
+    res.json({
+      message: "successful",
+      success: true,
+      data: users,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Failed to get vendor employee" });
+  }
+};
+
+export const setVendorSettings = async (req, res) => {
+  try {
+    console.log(req.body);
+    const settings = await VendorSettings.findOne({
+      where: { vendor_id: req.body.vendor_id },
+    });
+    if (settings) {
+      settings[req.body.page_name] = req.body.value;
+      const getVendors = await VendorEmployee.update(
+        { [req.body.page_name]: 0 },
+        {
+          where: { vendor_id: req.body.vendor_id },
+        }
+      );
+
+      await settings.save();
+    }
+
+    res.json({
+      message: "successful",
+      success: true,
+      data: settings,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Failed to get vendor employee" });
+  }
+};
+export const createVendorSettings = async (req, res) => {
+  try {
+    await VendorSettings.create({
+      vendor_id: req.body.vendor_id,
+      vendor_name: req.body.vendor_name,
+      dashboard_page: 1,
+      get_started_page: 1,
+      customers_page: 1,
+      packages_page: 0,
+      package_requests_page: 0,
+      upload_users_page: 0,
+      pickups_page: 0,
+      multiple_menu_editor_page: 0,
+      customer_orders_page: 0,
+      website_setting_page: 0,
+      order_summary_page: 0,
+      order_manager_page: 0,
+      delivery_manager_page: 0,
+      delivery_page: 0,
+      my_team_page: 0,
+      all_subscriptions_page: 0,
+      locations_page: 0,
+      settings_page: 0,
+      payments_page: 0,
+      billing_page: 0,
+      payment_settings_page: 0,
+      ad_desginer_page: 0,
+    });
+
+    res.json({
+      message: "successful",
+      success: true,
+    });
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Failed to get vendor employee" });
@@ -2414,7 +2780,7 @@ export const checkVendorLocationPostalRegion = async (req, res) => {
 
 export const getPopularItems = async (req, res) => {
   try {
-    const id = loggedInUser(req);
+    const id = loggedInUser(req).userId;
     const data = await CustomerOrderItem.findAll({
       include: [
         {
@@ -2463,17 +2829,20 @@ export const getPopularItems = async (req, res) => {
 
 export const getVendorCities = async (req, res) => {
   try {
-    const id = loggedInUser(req);
+    const id = loggedInUser(req).userId;
     const cityIds = await VendorLocationServiceAreas.findAll({
       include: [
         {
           model: VendorLocations,
           where: { vendor_id: id },
-          include: [CitiesAll],
+          include: [
+            { model: CitiesAll },
+            { model: PostalRegions },
+            { model: VendorLocationPostalRegions, include: [PostalRegions] },
+          ],
         },
       ],
     });
-    // const results = await CitiesAll.findAll();
     res.status(200).json({ success: true, data: cityIds });
   } catch (error) {
     console.log("Error fetching cities: " + error);
@@ -2482,7 +2851,7 @@ export const getVendorCities = async (req, res) => {
 };
 export const getCustomerPackageRequests = async (req, res) => {
   try {
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const locationIds = await loggedInUserLocation(req);
     const requests = await CustomerPackageRequest.findAll({
       where: {
@@ -2590,7 +2959,7 @@ export const handledeleteCity = async (req, res) => {
 export const savePackageDays = async (req, res) => {
   try {
     const packageData = req.body;
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     if (packageData?.id) {
       const existingPackage = await VendorPackage.findByPk(packageData.id);
 
@@ -2632,7 +3001,7 @@ export const savePackageDays = async (req, res) => {
 export const savePackage = async (req, res) => {
   try {
     const packageData = req.body.formData;
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
 
     const vendorUser = await UserVendor.findByPk(loggedInUserId);
     // Check if packageData.id exists
@@ -2868,7 +3237,7 @@ const transformArray = (arr) => {
 
 export const getAllDefaultItems = async (req, res) => {
   try {
-    const id = loggedInUser(req);
+    const id = loggedInUser(req).userId;
     const defItems = await VendorDefaultItem.findAll({
       where: { vendor_id: id },
     });
@@ -3086,7 +3455,7 @@ export const packageRequestApprove = async (req, res) => {
       res.status(500).json({ message: "Please provide valid dates" });
       return;
     }
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const request = await CustomerPackageRequest.findByPk(reqBody.id);
     request.status = 1;
     request.deleted = 0;
@@ -3273,7 +3642,7 @@ export const addNewSubscriptionPackage = async (req, res) => {
   try {
     const reqBody = req.body.pkgInfo;
     const orderDates = req.body.dates;
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     // const customerPackage = await CustomerPackage.create({
     //   user_id: reqBody.user_id,
     //   package_id: reqBody.package_id,
@@ -3474,7 +3843,7 @@ export const packageRequestReject = async (req, res) => {
 export const getMealCount = async (req, res) => {
   try {
     const { customer_id, packages } = req.body;
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     // Find the existing item
     // const existingSubscription = await CustomerSubscription.findByPk(id);
 
@@ -3658,12 +4027,14 @@ export const addItemToDay = async (req, res) => {
         adOrid = vendorPackageMenuItem.menu_default_group_id;
       }
     }
+    console.log("hellose2");
 
     let item;
     if (itemData.isDefault) {
       item = await VendorPackageMenuItems.create({
         package_id: itemData.package_id,
         menu_item_id: itemData.item_selected,
+        all_packages: 0,
         menu_item_name: selectedItem ? selectedItem.item_name : "",
         menu_default_group_id: adOrid !== "" ? adOrid : 0,
         menu_item_group_id: 0,
@@ -3680,6 +4051,8 @@ export const addItemToDay = async (req, res) => {
         package_id: itemData.package_id,
         menu_item_id: itemData.item_selected,
         menu_item_name: selectedItem ? selectedItem.item_name : "",
+        all_packages: 0,
+
         menu_default_group_id: 0,
         menu_item_group_id: adOrid,
         is_default_linked: itemData.is_default_linked,
@@ -3717,6 +4090,8 @@ export const addDefaultItemToDay = async (req, res) => {
         adOrid = vendorPackageMenuItem.menu_default_group_id;
       }
     }
+
+    const vendor_id = loggedInUser(req).userId;
     let item;
     if (itemData.isDefault) {
       item = await VendorPackageMenuItems.create({
@@ -3731,12 +4106,14 @@ export const addDefaultItemToDay = async (req, res) => {
         menu_date: itemData.date,
         sort_id: itemData.sort !== "" ? itemData.sort : 0,
         replace_parent: false,
+        all_packages: 1,
         quantity_id,
       });
     } else {
       item = await VendorPackageMenuItems.create({
         package_id: 0,
         menu_item_id: itemData.item_selected,
+        all_packages: vendor_id,
         menu_item_name: selectedItem ? selectedItem.item_name : "",
         menu_default_group_id: 0,
         menu_item_group_id: adOrid,
@@ -3773,7 +4150,7 @@ export const getCustomerOrders = async (req, res) => {
     const currentDay = Helper.formatDate(currentDate);
     const dayAbbreviated = Helper.getAbbreviatedDayName(currentDay.dayName);
 
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const vendorUser = await UserVendor.findByPk(loggedInUserId);
     const locationIds = await loggedInUserLocation(req);
     const results = await UserCustomer.findAll({
@@ -3824,7 +4201,7 @@ export const getCustomerOrders = async (req, res) => {
 
 export const saveVendorSettingTax = async (req, res) => {
   try {
-    const id = loggedInUser(req);
+    const id = loggedInUser(req).userId;
     console.log(req.body);
     const fetchData = await VendorSettings.findOne({
       where: { vendor_id: id },
@@ -3843,7 +4220,7 @@ export const saveVendorSettingTax = async (req, res) => {
 
 export const getVendorSetting = async (req, res) => {
   try {
-    const id = loggedInUser(req);
+    const id = loggedInUser(req).userId;
     const fetchData = await VendorSettings.findOne({
       where: { vendor_id: id },
     });
@@ -3926,7 +4303,7 @@ export const setNonConfrimOrderPickup = async (req, res) => {
 
 export const getVendorMenuItems = async (req, res) => {
   try {
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const results = await VendorMenuItems.findAll({
       where: {
         vendor_id: loggedInUserId,
@@ -3971,7 +4348,7 @@ export const setCustomerOrderItem = async (req, res) => {
 //     const currentDay = Helper.formatDate(currentDate);
 //     const dayAbbreviated = Helper.getAbbreviatedDayName(currentDay.dayName);
 
-//     const loggedInUserId = loggedInUser(req);
+//     const loggedInUserId = loggedInUser(req).userId;
 //     const vendorUser = await UserVendor.findByPk(loggedInUserId)
 //     // const results = await CustomerOrder.findAll({
 //     //   include: [
@@ -4073,7 +4450,7 @@ export const setCustomerOrderItem = async (req, res) => {
 
 export const getOrderSummary = async (req, res) => {
   const { selected_date } = req.body;
-  const loggedInUserId = loggedInUser(req);
+  const loggedInUserId = loggedInUser(req).userId;
   const selected_date_Obj = new Date(selected_date);
   const locationIds = await loggedInUserLocation(req);
 
@@ -4149,7 +4526,7 @@ export const getOrderSummary = async (req, res) => {
 };
 export const getOrdersByDate = async (req, res) => {
   const { order_date, vendor_location_id, user_id } = req.body;
-  const loggedInUserId = loggedInUser(req);
+  const loggedInUserId = loggedInUser(req).userId;
   const dateStr = order_date.split("T")[0];
   const lastItemofStr = dateStr.split("-");
   lastItemofStr[2] = parseInt(lastItemofStr[2]);
@@ -4310,7 +4687,7 @@ export const sendRenewalMsg = async (req, res) => {
 };
 export const getSubscriptionInfo = async (req, res) => {
   try {
-    const id = loggedInUser(req);
+    const id = loggedInUser(req).userId;
     const locationIds = await loggedInUserLocation(req);
     const subscription = await CustomerPackageSubscription.findAll({
       include: [
@@ -4418,7 +4795,7 @@ export const getVendorPackageWithFrequency = async (req, res) => {
     //   `Service Enter - ${req.originalUrl} - ${req.method}`,
     //   JSON.stringify(req.body)
     // );
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const vendorUser = await UserVendor.findByPk(loggedInUserId);
     const packages = await VendorPackage.findAll({
       where: {
@@ -4458,7 +4835,7 @@ export const AddCustomerPackage = async (req, res) => {
       handling,
       delivery_address_id,
     } = req.body;
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const vendorUser = await UserVendor.findByPk(loggedInUserId);
 
     //checking for vendor to customer rights
@@ -4521,7 +4898,7 @@ export const UpdateCustomerPackage = async (req, res) => {
       delivery_address_id,
       customer_package_id,
     } = req.body;
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const vendorUser = await UserVendor.findByPk(loggedInUserId);
     //checking for vendor to customer rights
     const customer = await UserCustomer.findOne({
@@ -4575,7 +4952,7 @@ export const updateVendorPackageItems = async (req, res) => {
   try {
     const { is_default, parentId, new_item_id, package_id, date, quantity_id } =
       req.body;
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     const vendorUser = await UserVendor.findByPk(loggedInUserId);
     const selectedItem = await VendorMenuItems.findOne({
       where: { id: new_item_id, vendor_id: loggedInUserId },
@@ -4629,7 +5006,7 @@ export const updateVendorPackageItems = async (req, res) => {
 export const deleteVendorPackageItems = async (req, res) => {
   try {
     const { id, date, is_default } = req.body;
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
     if (is_default) {
       if (req.body.quantity_id && req.body.quantity_id != id) {
         await VendorPackageMenuItems.destroy({
@@ -4683,7 +5060,7 @@ export const deleteVendorPackageItems = async (req, res) => {
 export const updateVendorPackageItemsQuantity = async (req, res) => {
   try {
     const { menu_item_id, id } = req.body;
-    const loggedInUserId = loggedInUser(req);
+    const loggedInUserId = loggedInUser(req).userId;
 
     const vendorPackageMenuItem = await VendorPackageMenuItems.findByPk(
       menu_item_id,
@@ -4711,7 +5088,7 @@ export const updateVendorPackageItemsQuantity = async (req, res) => {
 
 export const countPackagesOrderItems = async (req, res) => {
   try {
-    const id = loggedInUser(req);
+    const id = loggedInUser(req).userId;
     const packages = await VendorPackage.findAll({
       where: { vendor_id: id },
       include: [
@@ -4744,7 +5121,7 @@ export const countPackagesOrderItems = async (req, res) => {
 
 export const countPackagesMenuItems = async (req, res) => {
   try {
-    const vendor_id = loggedInUser(req);
+    const vendor_id = loggedInUser(req).userId;
     const getVendorPackages = await VendorPackage.findAll({
       where: { vendor_id: vendor_id },
     });
@@ -4806,7 +5183,7 @@ export const uploadFile = async (req, res) => {
 };
 
 // export const getAllPackagesDefaultItems = async (req, res) => {
-//   const id = loggedInUser(req);
+//   const id = loggedInUser(req).userId;
 //   const vDays = [
 //     "Sunday",
 //     "Monday",
@@ -4850,9 +5227,9 @@ export const uploadFile = async (req, res) => {
 
 export const getAllPackagesDefaultItems = async (req, res) => {
   try {
-    const userId = loggedInUser(req);
+    const userId = loggedInUser(req).userId;
     const results = await VendorPackageDefaultItem.findAll({
-      where: { package_id: 0, all_packages: 1 },
+      where: { package_id: 0, all_packages: userId },
       include: [
         {
           model: VendorDefaultItem,
@@ -4879,6 +5256,7 @@ export const getAllPackagesDefaultItems = async (req, res) => {
           package_id: 0,
           menu_default_group_id: 0,
           menu_item_group_id: 0,
+
           menu_date: new Date(days.Date),
         },
         include: [
@@ -5168,7 +5546,7 @@ export const getVendorCustomerAddress = async (req, res) => {
 export const getVendorCustomerOrders = async (req, res) => {
   try {
     const customer_id = req.params.id;
-    // const vendor_id = loggedInUser(req);
+    // const vendor_id = loggedInUser(req).userId;
     const fetchOrders = await CustomerOrder.findAll({
       where: {
         user_id: customer_id,
@@ -5191,7 +5569,7 @@ export const getVendorCustomerOrders = async (req, res) => {
 export const getAllVendorOrders = async (req, res) => {
   try {
     const customer_id = req.params.id;
-    // const vendor_id = loggedInUser(req);
+    // const vendor_id = loggedInUser(req).userId;
     const fetchOrders = await CustomerOrder.findAll({
       where: {
         user_id: customer_id,
@@ -5272,7 +5650,7 @@ export const sendMsgForPickupOrder = async (req, res) => {
 
 export const getVendorWebsiteSetting = async (req, res) => {
   try {
-    const vendor_id = loggedInUser(req);
+    const vendor_id = loggedInUser(req).userId;
     const webSetting = await VendorWebsiteSetting.findAll({
       where: {
         vendor_id: vendor_id,
@@ -5289,7 +5667,7 @@ export const getVendorWebsiteSetting = async (req, res) => {
 };
 export const setVendorWebsiteSetting = async (req, res) => {
   try {
-    const vendor_id = loggedInUser(req);
+    const vendor_id = loggedInUser(req).userId;
     if (req.body.id) {
       const webSetting = await VendorWebsiteSetting.findOne({
         where: {
@@ -5406,7 +5784,7 @@ export const addVendorDefaultItem = async (req, res) => {
       fileUrl = req.body.item_image;
     }
 
-    const vendor_id = loggedInUser(req);
+    const vendor_id = loggedInUser(req).userId;
     if (req.body.id) {
       const defItem = await VendorDefaultItem.findOne({
         where: {
@@ -5496,7 +5874,7 @@ export const deleteDefaultItemImage = async (req, res) => {
 
 export const getCustomerPaymentStatus = async (req, res) => {
   try {
-    const id = loggedInUser(req);
+    const id = loggedInUser(req).userId;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.pageSize) || 10;
     const offset = (page - 1) * limit;
@@ -5568,61 +5946,281 @@ export const getCustomerPaymentStatus = async (req, res) => {
   }
 };
 
-// export const getVendorBillingInfo = async (req, res) => {
-//   try {
-//     const id = loggedInUser(req);
-//     const page = parseInt(req.query.page) || 1;
-//     const limit = parseInt(req.query.pageSize) || 10;
-//     const offset = (page - 1) * limit;
-//     const getData = await CustomerPackageSubscription.findAll({
-//       limit: limit,
-//       offset: offset,
-//       order: [["payment_date", "DESC"]],
+export const getVendorBillingInfo = async (req, res) => {
+  try {
+    const id = loggedInUser(req).userId;
 
-//       include: [
-//         {
-//           model: CustomerPackage,
-//           include: [
-//             {
-//               model: VendorPackagePrice,
-//             },
-//             { model: VendorPackage, where: { vendor_id: id }, required: true },
-//             { model: CustomerOrder },
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.pageSize) || 10;
+    const offset = (page - 1) * limit;
+    const getData = await PlatformVendorBilling.findAll({
+      limit: limit,
+      offset: offset,
+      order: [["payment_date", "DESC"]],
+      where: { vendor_id: id },
 
-//             { model: UserCustomer },
-//           ],
-//           required: true,
-//         },
-//         {
-//           model: PaymentMethods,
-//         },
-//       ],
-//     });
-//     const count = await CustomerPackageSubscription.findAll({
-//       include: [
-//         {
-//           model: CustomerPackage,
-//           required: true,
-//           include: [
-//             { model: VendorPackagePrice },
-//             { model: VendorPackage, where: { vendor_id: id }, required: true },
-//             { model: CustomerOrder },
-//             { model: UserCustomer },
-//           ],
-//         },
-//         {
-//           model: PaymentMethods,
-//         },
-//       ],
-//     });
+      include: [
+        {
+          model: Plans,
+        },
+      ],
+    });
+    const count = await PlatformVendorBilling.findAll({
+      include: [
+        {
+          model: Plans,
+        },
+      ],
+    });
 
-//     const totalPages = Math.ceil(count.length / limit);
+    const totalPages = Math.ceil(count.length / limit);
 
-//     res
-//       .status(200)
-//       .send({ success: true, data: getData, totalPages: totalPages });
-//   } catch (error) {
-//     console.log("Error " + error);
-//     res.status(500).json({ error: "Internal Server Error" });
-//   }
-// };
+    res
+      .status(200)
+      .send({ success: true, data: getData, totalPages: totalPages });
+  } catch (error) {
+    console.log("Error " + error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const createVendorTamplateDesigner = async (req, res) => {
+  try {
+    const id = loggedInUser(req).userId;
+
+    const findTamp = await VendorTamplateDesigner.findOne({
+      where: { vendor_id: id },
+    });
+    let info;
+    if (findTamp) {
+      findTamp.first = req.body.first;
+      findTamp.second = req.body.second;
+      findTamp.third = req.body.third;
+      findTamp.forth = req.body.forth;
+      findTamp.fifth = req.body.fifth;
+      findTamp.sixth = req.body.sixth;
+      await findTamp.save();
+      info = findTamp;
+    } else {
+      const data = VendorTamplateDesigner.create({
+        vendor_id: id,
+        first: req.body.first,
+
+        sencond: req.body.second,
+        third: req.body.third,
+        forth: req.body.forth,
+        fifth: req.body.fifth,
+        sixth: req.body.sixth,
+      });
+      info = data;
+    }
+
+    res.status(200).send({ success: true, data: info });
+  } catch (error) {
+    console.log("Error " + error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const getVendorTamplateDesigner = async (req, res) => {
+  try {
+    const id = loggedInUser(req).userId;
+
+    const findTamp = await VendorTamplateDesigner.findOne({
+      where: { vendor_id: id },
+    });
+
+    res.status(200).send({ success: true, data: findTamp });
+  } catch (error) {
+    console.log("Error " + error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const getVendorTamplateInfo = async (req, res) => {
+  try {
+    const id = loggedInUser(req).userId;
+
+    const findWebSettings = await VendorWebsiteSetting.findAll({
+      where: { vendor_id: id },
+    });
+
+    const findVendor = await Vendor.findByPk(id);
+
+    res.status(200).send({
+      success: true,
+      data: { Vendor: findVendor, WebSettings: findWebSettings },
+    });
+  } catch (error) {
+    console.log("Error " + error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const changeCustomerPackage = async (req, res) => {
+  try {
+    const id = loggedInUser(req).userId;
+
+    const fetchPkg = await CustomerPackage.findOne({
+      where: { id: req.body.customerPkg_id },
+    });
+    fetchPkg.package_id = req.body.package_id;
+    await fetchPkg.save();
+
+    const delData = await CustomerOrderItem.findAll({
+      include: [
+        {
+          model: CustomerOrder,
+          where: { customer_package_id: req.body.customerPkg_id },
+          required: true,
+        },
+      ],
+    });
+
+    const order_ids = delData.map((item) => item.id);
+
+    if (order_ids.length > 0) {
+      await CustomerOrderItem.destroy({
+        where: { id: { [Op.in]: order_ids } },
+      });
+    }
+
+    const emailTamplete = {
+      vendor_name: req.body.vendor,
+      oldPackage: req.body.oldPackage_name,
+      newPackage: req.body.newPackage_name,
+      customerName: req.body.customerName,
+    };
+    const subject = "Switch Package";
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const html = await ejs.renderFile(
+      join(__dirname, "..", "..", "views", "package-change-message.ejs"),
+      emailTamplete
+    );
+
+    await sendEmail(req.body.email, subject, "hello", html);
+
+    res.status(200).send({
+      success: true,
+    });
+  } catch (error) {
+    console.log("Error " + error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const getVendorSettings = async (req, res) => {
+  try {
+    const id = loggedInUser(req).userId;
+
+    const findSettings = await VendorSettings.findOne({
+      where: { vendor_id: id },
+    });
+
+    res.status(200).send({ success: true, data: findSettings });
+  } catch (error) {
+    console.log("Error " + error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+export const deleteVendorMenuItem = async (req, res) => {
+  try {
+    const id = req.params.id;
+
+    const deletedItem = await VendorMenuItems.destroy({
+      where: { id: id },
+    });
+    console.log(deletedItem);
+    res
+      .status(200)
+      .send({ success: true, message: "Item deleted successfully" });
+  } catch (error) {
+    console.log("Error " + error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const getVendorSettingsByVendorId = async (req, res) => {
+  try {
+    const vendorEmployee = await VendorSettings.findOne({
+      where: { vendor_id: req.params.id },
+    });
+    const vendorId = req.params.id;
+    const locationIds = await loggedInUserLocation(req);
+    const id = loggedInUser(req).userId;
+    const users = await UserCustomer.count({
+      include: [
+        {
+          model: VendorCustomerLink,
+          where: { location_id: { [Op.in]: [...locationIds] } },
+          required: true,
+        },
+      ],
+    });
+    const counts = await Promise.all([
+      UserVendor.findOne({ where: { id } }),
+      VendorEmployee.count({ where: { vendor_id: vendorId } }),
+      VendorLocations.count({
+        where: {
+          vendor_id: vendorId,
+          status: 1,
+          // id: { [Op.in]: [...locationIds] },
+        },
+      }),
+      VendorPackage.count({
+        where: { vendor_id: vendorId },
+        vendor_location_id: { [Op.in]: [...locationIds] },
+      }),
+      VendorMenuItems.count({ where: { vendor_id: vendorId } }),
+      VendorEmployee.count({
+        where: { vendor_id: vendorId, vendor_role_id: 3 },
+        include: [
+          {
+            model: VendorEmployeeLocations,
+            where: { vendor_employee_id: { [Op.in]: [...locationIds] } },
+            required: true,
+          },
+        ],
+      }),
+    ]);
+
+    const [
+      userVendor,
+      vendorEmployeeCount,
+      vendorLocationsCount,
+      vendorPackageCount,
+      vendorMenuItemsCount,
+      vendorDriversCount,
+    ] = counts;
+
+    res.json({
+      message: "successful",
+      success: true,
+      data: vendorEmployee,
+      vendor: userVendor,
+      no_of_employees: vendorEmployeeCount,
+      no_of_locations: vendorLocationsCount,
+      no_of_customers: users,
+      no_of_packages: vendorPackageCount,
+      no_of_menu_items: vendorMenuItemsCount,
+      no_of_drivers: vendorDriversCount,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Failed to get vendor employee" });
+  }
+};
+
+export const getVendorRoles = async (req, res) => {
+  try {
+    const vendorRoles = await VendorRoles.findAll();
+    res.json({
+      success: true,
+      data: vendorRoles,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Failed to get vendor employee" });
+  }
+};

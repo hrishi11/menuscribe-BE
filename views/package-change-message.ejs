@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Application</title>
+    <style>
+      .container {
+        margin: auto;
+        padding: 20px;
+        border-radius: 10px;
+        background-color: #f9f9f9;
+        margin: auto;
+      }
+
+      .header {
+        text-align: center;
+        margin-bottom: 20px;
+
+        width: "100%";
+        align-items: center;
+        margin: auto;
+        text-align: center;
+      }
+      .header-inner {
+        display: flex;
+        flex-direction: row;
+        width: fit-content;
+        margin: auto;
+      }
+      .header h1 {
+        font-size: 30px;
+      }
+
+      .main {
+        /* text-align: center; */
+        /* display: flex; */
+        /* justify-content: center; */
+
+        justify-items: center;
+        /* margin-left: 25%; */
+      }
+
+      .main-container {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 5px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        width: 70%;
+        margin: auto;
+      }
+
+      .main-container p {
+        font-size: 13px;
+        line-height: 1.5;
+        /* color: rgb(21, 21, 21); */
+        margin-bottom: 15px;
+      }
+
+      .main-container .btn {
+        background-color: #3271b3;
+        color: #ffffff;
+        border: none;
+        border-radius: 4px;
+        padding: 10px 20px;
+        font-size: 12px;
+
+        cursor: pointer;
+      }
+
+      .main-container .btn:hover {
+        background-color: #0056b3;
+      }
+      @media screen and (max-width: 480px) {
+        .main-container .btn {
+          margin: auto;
+          width: fit-content;
+          display: flex;
+          flex-wrap: wrap;
+        }
+        .main-container {
+          width: 100%;
+          margin: 0px;
+          padding: 3px;
+        }
+
+        .header-inner {
+          margin: auto;
+          width: fit-content;
+        }
+        .main {
+          margin-left: 0px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header Section -->
+      <div class="header">
+        <div class="header-inner">
+          <h1 style="color: red">Menu</h1>
+          <h1>scribe</h1>
+        </div>
+      </div>
+
+      <!-- Body Section -->
+      <div class="main">
+        <div class="main-container">
+          <p>Dear <%= customerName %>,</p>
+          <p>
+            <%= vendor_name %> is notifying you that your package has be
+            switched. Any custom item that you may have selected for future
+            meals may have been removed, and you may need to reselect them. Your new
+            package details are follows:
+          </p>
+          <p style="display: flex; flex-direction: column;"">
+            <span style="font-weight:600;">Old Package:</span>
+            <span><%= oldPackage %></span>
+          </p>
+          <p style="display: flex; flex-direction: column;">
+            <span style="font-weight:600;">New Package:</span>
+            <span><%= newPackage %></span>
+          </p>
+          <p>
+            If you have any questions, please contact <%= vendor_name %>
+          </p>
+        </div>
+
+        <!-- Footer Section -->
+      </div>
+    </div>
+  </body>
+</html>

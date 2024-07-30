@@ -90,7 +90,6 @@ import {
   setVendorPaymentMethods,
   addPkgTimeSlots,
   getVendorPackagesForVendorLocation,
-  deletLocation,
   setOrderIsDelivered,
   getPackageTImeSlots,
   getPostalRegions,
@@ -143,6 +142,21 @@ import {
   deletePackageImage,
   deleteDefaultItemImage,
   getCustomerPaymentStatus,
+  getVendorBillingInfo,
+  getVendorSettingsById,
+  getAllUserVendors,
+  setVendorSettings,
+  createVendorSettings,
+  createVendorTamplateDesigner,
+  getVendorTamplateDesigner,
+  getVendorTamplateInfo,
+  getAllVendorPackages,
+  changeCustomerPackage,
+  getVendorSettings,
+  deleteVendorMenuItem,
+  deleteLocation,
+  getVendorSettingsByVendorId,
+  getVendorRoles,
   // addVendorLocationPostalRegion,
 } from "../controller/VendorController.js";
 import {
@@ -201,6 +215,16 @@ import {
   getVendorPackageForCustomer,
   setInitCustomerPackageRequest,
   setCustomerOrderStatus,
+  getAllCustomerOrders,
+  getVendorPackageByLocation,
+  getCustomerDeliveryLocations,
+  getSelectedCustomerPackage,
+  customerPackageCancelByCustomer,
+  getCustomerPaymentMethod,
+  updateCustomerPaymentMethod,
+  getCustomerDeliveryAddress,
+  updateCustomerPackageAddressByCustomer,
+  getCustomerBillingInfo,
 } from "../controller/CustomerController.js";
 
 // const storage = multer.memoryStorage(); // Store file as a buffer in memory
@@ -235,8 +259,8 @@ router.post("/send-verification-password", sendForgetPasswordMsg);
 router.post("/verify-forget-passwor-link", verifyForgetPasswordLink);
 router.post("/reset-forget-password", resetForgetPassword);
 
-router.get(
-  "/get-packages-without-login-by-vendorid/:id",
+router.post(
+  "/get-packages-without-login-by-vendorid",
   getPackagesWithoutLoginByVendorId
 );
 router.post("/save-vendor-setting-tax", saveVendorSettingTax);
@@ -303,6 +327,7 @@ router.post("/update-customer", updateCustomer);
 router.post("/get-user-packages", getUserPackages);
 router.post("/add-item-to-day", addItemToDay);
 router.get("/get-customer-packages/:id", getCustomerPackages);
+router.post("/change-customer-package", changeCustomerPackage);
 router.get("/get-vendor-customer-address/:id", getVendorCustomerAddress);
 router.get("/get-customer-packagess/:id", getCustomerPackagess);
 router.get("/get-customer-active-packages/:id", getCustomerActivePackages);
@@ -461,7 +486,7 @@ router.post(
   getVendorPackagesForVendorLocation
 );
 router.get("/get-vendor-packages-for-vendor", getVendorPackagesForVendor);
-router.delete("/delete-vendor-location/:id", deletLocation);
+router.delete("/delete-vendor-location/:id", deleteLocation);
 router.get("/get-package-timeslots/:id", getPackageTImeSlots);
 router.delete("/delete-package-timeslots/:id", deletePackageTimeSlots);
 router.get("/check-deleted-time-slots/:id", checkDeletedTimeSlots);
@@ -522,5 +547,37 @@ router.delete("/delete-vendor-default-item/:id", deleteVendorDefaultItem);
 router.post("/delete-package-image", deletePackageImage);
 router.post("/delete-default-item-image", deleteDefaultItemImage);
 router.get("/get-customer-payment-status", getCustomerPaymentStatus);
+router.get("/get-vendor-billing-info", getVendorBillingInfo);
+router.get("/get-customer-billing-info", getCustomerBillingInfo);
+router.get("/get-vendor-setting-by-id/:id", getVendorSettingsById);
+router.get("/get-all-user-vendors", getAllUserVendors);
+router.post("/set-vendor-settings", setVendorSettings);
+router.post("/create-vendor-settings", createVendorSettings);
+router.post("/create-vendor-tamplate-designer", createVendorTamplateDesigner);
+router.get("/get-vendor-tamplate-designer", getVendorTamplateDesigner);
+router.get("/get-vendor-tamplate-info", getVendorTamplateInfo);
+router.get("/get-all-vendor-packages", getAllVendorPackages);
+router.post("/get-all-customer-orders", getAllCustomerOrders);
+router.get("/get-vendor-settings", getVendorSettings);
+router.post("/get-vendor-package-by-location/", getVendorPackageByLocation);
+router.delete("/delete-vendor-menu-item/:id", deleteVendorMenuItem);
+router.get(
+  "/get-vendor-settings-by-vendor-id/:id",
+  getVendorSettingsByVendorId
+);
+router.get("/get-customer-delivery-locations", getCustomerDeliveryLocations);
+router.get("/get-vendor-roles", getVendorRoles);
+router.get("/get-selected-customer-package", getSelectedCustomerPackage);
+router.post(
+  "/customer-package-cancel-by-customer",
+  customerPackageCancelByCustomer
+);
+router.get("/get-customer-payment-method", getCustomerPaymentMethod);
+router.patch("/update-customer-payment-method", updateCustomerPaymentMethod);
+router.get("/get-customer-delivery-address/:id", getCustomerDeliveryAddress);
+router.post(
+  "/update-customer-package-address-by-customer",
+  updateCustomerPackageAddressByCustomer
+);
 
 export default router;

@@ -42,6 +42,9 @@ import { VendorRoles } from "./VendorModels/VendorRole.js";
 import { VendorDefaultItem } from "./VendorModels/VendorDefaultItems.js";
 import { VendorCustomerPaymentLog } from "./VendorModels/VendorCustomerPaymentLog.js";
 import { VendorCities } from "./VendorModels/VendorCities.js";
+import { PlatformVendorBilling } from "./VendorModels/PlatformVendorBilling.js";
+import { Plans } from "./VendorModels/Plans.js";
+import { CustomerPaymentMethod } from "./CustomerModels/CustomerPaymentMethod.js";
 
 VendorPackage.belongsTo(Vendor, {
   foreignKey: "vendor_id",
@@ -77,6 +80,13 @@ CustomerOrder.belongsTo(VendorDrivers, {
 });
 VendorDrivers.hasMany(CustomerOrder, {
   foreignKey: "vendor_employee_id",
+});
+
+Vendor.hasMany(VendorDrivers, {
+  foreignKey: "vendor_id",
+});
+VendorDrivers.belongsTo(Vendor, {
+  foreignKey: "vendor_id",
 });
 
 VendorEmployee.belongsTo(VendorRoles, {
@@ -143,6 +153,25 @@ VendorPackage.hasMany(VendorLocationPostalRegions, {
   foreignKey: "package_id",
 });
 
+UserCustomer.belongsTo(Vendor, {
+  foreignKey: "vendor_id",
+});
+Vendor.hasMany(UserCustomer, {
+  foreignKey: "vendor_id",
+});
+
+UserVendor.hasMany(CustomerOrder, {
+  foreignKey: "driver_id",
+});
+CustomerOrder.belongsTo(UserVendor, {
+  foreignKey: "driver_id",
+});
+UserVendor.belongsTo(Vendor, {
+  foreignKey: "vendor_id",
+});
+Vendor.hasMany(UserVendor, {
+  foreignKey: "vendor_id",
+});
 CustomerDeliveryAddress.belongsTo(UserCustomer, { foreignKey: "customer_id" });
 UserCustomer.hasMany(CustomerDeliveryAddress, { foreignKey: "customer_id" });
 
@@ -223,6 +252,39 @@ PaymentMethods.hasMany(CustomerPackageSubscription, {
   foreignKey: "payment_method_id",
 });
 
+CustomerOrder.belongsTo(Plans, {
+  foreignKey: "plan_id",
+});
+Plans.hasMany(CustomerOrder, {
+  foreignKey: "plan_id",
+});
+VendorCustomerPaymentLog.belongsTo(Plans, {
+  foreignKey: "plan_id",
+});
+Plans.hasMany(VendorCustomerPaymentLog, {
+  foreignKey: "plan_id",
+});
+VendorCustomerPaymentLog.belongsTo(Vendor, {
+  foreignKey: "vendor_id",
+});
+Vendor.hasMany(VendorCustomerPaymentLog, {
+  foreignKey: "vendor_id",
+});
+
+PlatformVendorBilling.belongsTo(Plans, {
+  foreignKey: "plan_id",
+});
+Plans.hasMany(PlatformVendorBilling, {
+  foreignKey: "plan_id",
+});
+
+UserVendor.belongsTo(VendorRoles, {
+  foreignKey: "role_id",
+});
+VendorRoles.hasMany(UserVendor, {
+  foreignKey: "role_id",
+});
+
 CustomerPackageSubscription.hasMany(CustomerOrder, {
   foreignKey: "customer_package_subscription_id",
 });
@@ -284,6 +346,13 @@ CustomerPackage.hasMany(CustomerSubscription, {
 
 CustomerSubscription.belongsTo(CustomerPackage, {
   foreignKey: "customer_package_id",
+});
+Vendor.hasMany(VendorMenuItems, {
+  foreignKey: "vendor_id",
+});
+
+VendorMenuItems.belongsTo(Vendor, {
+  foreignKey: "vendor_id",
 });
 
 //Vendor Package Default Item -- vendor menu items
@@ -373,13 +442,31 @@ VendorLocations.hasMany(VendorPackageLocations, {
   foreignKey: "vendor_location_id",
 });
 
+VendorLocations.belongsTo(PostalRegions, {
+  foreignKey: "postal_id",
+});
+PostalRegions.hasMany(VendorLocations, {
+  foreignKey: "postal_id",
+});
+
 //customer order -- vendor package
 VendorPackage.hasMany(CustomerOrder, { foreignKey: "package_id" });
 CustomerOrder.belongsTo(VendorPackage, { foreignKey: "package_id" });
 UserCustomer.belongsTo(VendorPackage, { foreignKey: "vendor_id" });
 //customer order -- vendor package
-CustomerOrder.hasMany(CustomerOrderItem, { foreignKey: "order_id" });
-CustomerOrderItem.belongsTo(CustomerOrder, { foreignKey: "order_id" });
+CustomerOrder.hasMany(CustomerOrderItem, {
+  foreignKey: "order_id",
+});
+CustomerOrderItem.belongsTo(CustomerOrder, {
+  foreignKey: "order_id",
+});
+
+UserCustomer.hasOne(CustomerPaymentMethod, {
+  foreignKey: "customer_id",
+});
+CustomerPaymentMethod.belongsTo(UserCustomer, {
+  foreignKey: "customer_id",
+});
 //customer order -- vendor package
 CustomerOrderItem.belongsTo(VendorMenuItems, { foreignKey: "item_id" });
 //vendorPackage -- item quantity
@@ -416,7 +503,9 @@ VendorLocations.belongsTo(CitiesAll, {
   foreignKey: "city_id",
   targetKey: "id",
 });
-Vendor.belongsTo(VendorLocations, { foreignKey: "id", targetKey: "vendor_id" });
+Vendor.hasMany(VendorLocations, { foreignKey: "vendor_id" });
+VendorLocations.belongsTo(Vendor, { foreignKey: "vendor_id" });
+
 // VendorLocations.hasMany(VendorLocationServiceAreas, {foreignKey: 'id', sourceKey: 'vendor_location_id'})
 VendorLocationServiceAreas.belongsTo(VendorLocations, {
   foreignKey: "vendor_location_id",

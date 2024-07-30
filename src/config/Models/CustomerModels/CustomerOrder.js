@@ -18,6 +18,10 @@ export const CustomerOrder = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: false,
     },
+    plan_id: {
+      type: DataTypes.INTEGER,
+    },
+
     pickup_delivery: {
       type: DataTypes.INTEGER,
       allowNull: false,
@@ -88,6 +92,9 @@ export const CustomerOrder = sequelize.define(
       type: DataTypes.CHAR,
     },
     vendor_package_slots_id: {
+      type: DataTypes.INTEGER,
+    },
+    driver_id: {
       type: DataTypes.INTEGER,
     },
   },

@@ -1,8 +1,8 @@
 import { sequelize } from "../../dbConfig.js";
 import { DataTypes } from "sequelize";
 
-export const VendorDriverCities = sequelize.define(
-  "VendorDriverCities",
+export const VendorDriverPostalRegions = sequelize.define(
+  "VendorDriverPostalRegions",
   {
     id: {
       type: DataTypes.INTEGER,
@@ -25,7 +25,7 @@ export const VendorDriverCities = sequelize.define(
     },
   },
   {
-    tableName: "vendor_driver_cities",
+    tableName: "vendor_driver_postal_regions",
     timestamps: false,
   }
 );

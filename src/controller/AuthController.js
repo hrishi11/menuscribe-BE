@@ -1,4 +1,4 @@
-import { Op } from "sequelize";
+import { Op, where } from "sequelize";
 import crypto from "crypto";
 import asyncHandler from "express-async-handler";
 import generateToken, { invalidateToken } from "../utils/utils.js";
@@ -9,6 +9,7 @@ import {
   VendorSettings,
   VendorLocations,
   CustomerDeliveryAddress,
+  VendorEmployee,
 } from "../config/Models/relations.js";
 import { Console, log } from "console";
 import { fileURLToPath } from "url";
@@ -18,6 +19,7 @@ import { sendEmail } from "../utils/email.js";
 import Helper from "../utils/Helper.js";
 import Twilio from "twilio";
 import { create } from "domain";
+import { VendorRoles } from "../config/Models/VendorModels/VendorRole.js";
 
 // Function to find a user by email
 function hashPassword(password) {
@@ -30,20 +32,32 @@ function matchPassword(user, password) {
 }
 
 export const authUser = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, vendorEmployeeId } = req.body;
+  console.log(req.body);
   try {
+    const emp = await VendorEmployee.findOne({
+      where: { id: vendorEmployeeId },
+      include: [
+        {
+          model: Vendor,
+        },
+      ],
+    });
+
     const user = await UserVendor.findOne({
       where: {
         [Op.or]: [{ email }, { phone: email }],
       },
+      include: [{ model: VendorRoles }],
     });
+    // console.log(emp.dataValues.vendor_id);
     if (user && matchPassword(user, password)) {
-      const token = generateToken(res, user.id);
+      const token = generateToken(res, user.id, emp.dataValues.vendor_id);
       res.status(201).json({
         status: "success",
         id: user.id,
         email: user.email,
-        type: user.role,
+        type: user.dataValues.VendorRole.role,
         token: token,
       });
     } else {
@@ -329,11 +343,18 @@ export const addCustomerAddress = async (req, res) => {
   // console.log("API HIT")
   try {
     const reqBody = req.body;
+
     const fetchUser = await UserCustomer.findOne({
       where: {
         id: reqBody.id,
       },
     });
+    if (reqBody.postal) {
+      const postal = await PostalRegions.findOne({
+        where: { POSTAL_CODE: reqBody.postal },
+      });
+      fetchUser.postal_id = postal?.dataValues.id;
+    }
     fetchUser.tp_user = 1;
     await fetchUser.save();
 

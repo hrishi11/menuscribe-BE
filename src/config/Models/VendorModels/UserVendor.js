@@ -13,8 +13,8 @@ export const UserVendor = sequelize.define(
       allowNull: true,
     },
     verification_code: {
-      type: DataTypes.INTEGER, // Adjust the data type as per your requirement
-      allowNull: true, // Adjust the allowNull property as per your requirement
+      type: DataTypes.INTEGER,
+      allowNull: true,
     },
     email: {
       type: DataTypes.STRING,
@@ -36,8 +36,19 @@ export const UserVendor = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: true,
     },
+    website_admin: {
+      type: DataTypes.INTEGER,
+    },
     role: {
       type: DataTypes.ENUM("Admin", "Manager", "Rider"),
+      allowNull: true,
+    },
+    role_id: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    postal_id: {
+      type: DataTypes.INTEGER,
       allowNull: true,
     },
   },

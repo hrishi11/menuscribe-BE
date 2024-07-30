@@ -17,6 +17,10 @@ export const CustomerDeliveryAddress = sequelize.define(
       type: DataTypes.INTEGER,
       // allowNull: false,
     },
+    default_address: {
+      type: DataTypes.INTEGER,
+      // allowNull: false,
+    },
 
     unit_number: {
       type: DataTypes.STRING,

@@ -47,6 +47,18 @@ export const VendorCustomerPaymentLog = sequelize.define(
       allowNull: false,
       defaultValue: DataTypes.NOW,
     },
+    payment_date: {
+      type: DataTypes.DATE,
+    },
+    payment_due: {
+      type: DataTypes.DATE,
+    },
+    plan_id: {
+      type: DataTypes.INTEGER,
+    },
+    status: {
+      type: DataTypes.INTEGER,
+    },
   },
   {
     tableName: "vendor_customer_payment_log",

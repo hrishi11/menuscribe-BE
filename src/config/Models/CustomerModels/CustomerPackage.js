@@ -68,6 +68,10 @@ export const CustomerPackage = sequelize.define(
       type: DataTypes.INTEGER,
       allowNull: false,
     },
+    tiffinplan: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
   },
   {
     tableName: "customer_package",

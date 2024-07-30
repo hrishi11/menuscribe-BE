@@ -36,6 +36,9 @@ export const UserCustomer = sequelize.define(
     address_2: {
       type: DataTypes.TEXT,
     },
+    postal_id: {
+      type: DataTypes.INTEGER,
+    },
     delivery_instruction: {
       type: DataTypes.TEXT,
     },
@@ -67,9 +70,6 @@ export const UserCustomer = sequelize.define(
       type: DataTypes.DATE,
     },
     last_order: {
-      type: DataTypes.INTEGER,
-    },
-    vendor_id: {
       type: DataTypes.INTEGER,
     },
     subscribe: {
